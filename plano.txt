@@ -1,0 +1,30 @@
+Plano de estacionamento
+
+entrada de veiculo{
+    1. Entrada no veiculo
+    Placa
+    caso o carro da placa informada não possua cadastro, abrir a tela de cadastro de veiculos.
+    caso possua cadastro vamos gravar os dados no banco 
+    (placa, modelo, cor, data de entrada, hora de entrada)
+    imprimir comprovante (dados acima)
+}
+
+cadastro de veiculo{
+    Placa
+    modelo
+    cor 
+}
+
+calculo de tempo de permanencia
+cobrança pelo tempo de permanência
+
+cadastro de clinetes (mensalista ou não)
+
+tipo de veiculo (moto e carro)
+
+emitir comprovante de entrada
+emitir comprovante de saida
+
+=================================================================================================
+TELA DE ENTRADA 
+TELA DE CADASTRO
