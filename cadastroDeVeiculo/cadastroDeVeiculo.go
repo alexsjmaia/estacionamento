@@ -51,6 +51,7 @@ func CadastrarVeiculo(placa string) bool {
 		fmt.Println("Erro ao capturar o Ultimo ID inserido", err, ultimoIdInserido)
 	}
 	fmt.Println("Veicuo cadastrado com Sucesso", ultimoIdInserido, carro.placa, carro.modelo, carro.cor)
+
 	//////////////////////////////////////////////////////////////////////////////////////////
 	//idInserido := entradaDeVeiculos.ExecutaEntrada(carro.placa, carro.modelo, carro.cor)
 
