@@ -2,6 +2,7 @@
 package saidadeveiculos
 
 import (
+	"estacionamento/cobranca"
 	"estacionamento/dataBase"
 	"fmt"
 	"log"
@@ -41,19 +42,41 @@ func SaidaDeveiculos() {
 				fmt.Println("O Veiculo Já Saiu do Pátio")
 			} else {
 
-				dataHoraDeSaida := time.Now()
+				linhas()
+
+				fmt.Println("\n", placa, modelo, cor, dataHoraEntrada, veiculoNoPatio)
+
+				dataHoraDeSaida := time.Now().Format("2006-01-02 15:04:05")
 
 				dataHoraEntradaTime, err := time.Parse("2006-01-02 15:04:05", dataHoraEntrada)
 				if err != nil {
 					panic(err.Error())
 				}
 
-				tempoDePermanencia := dataHoraDeSaida.Sub(dataHoraEntradaTime)
+				dataHoraDeSaidaTime, err := time.Parse("2006-01-02 15:04:05", dataHoraDeSaida)
+				if err != nil {
+					panic(err.Error())
+				}
 
-				fmt.Println("Data e hora de Entrada", dataHoraEntrada)
-				fmt.Println("Data e hora de saida : ", dataHoraDeSaida)
-				fmt.Println("Tempo de permanencia : ", tempoDePermanencia)
+				tempoDePermanencia := dataHoraDeSaidaTime.Sub(dataHoraEntradaTime)
+
+				linhas()
+
+				fmt.Println("\nData e hora de Entrada:\t", dataHoraEntrada)
+				fmt.Println("Data e hora de saida:\t", dataHoraDeSaida)
+				fmt.Println("Tempo de permanencia:\t", tempoDePermanencia)
+
+				linhas()
+
+				fmt.Println("")
+				cobranca.Cobranca(tempoDePermanencia)
 			}
 		}
+	}
+}
+
+func linhas() {
+	for i := 0; i < 60; i++ {
+		fmt.Printf("=")
 	}
 }
