@@ -8,7 +8,7 @@ import (
 
 // ConexaoBanco abre a conexão com o banco de dados e retorna
 func ConexaoBanco() (*sql.DB, error) {
-	stringConexao := "root:260803@/estacionamento?charset=utf8&parseTime=True&loc=Local"
+	stringConexao := "user:password@/estacionamento?charset=utf8&parseTime=True&loc=Local"
 	db, err := sql.Open("mysql", stringConexao)
 	if err != nil {
 		return nil, err
