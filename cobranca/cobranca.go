@@ -12,7 +12,7 @@ var (
 	tempoDePermanenciaMinutos, id                                    int
 )
 
-func Cobranca(tempoDePermanencia time.Duration) bool {
+func Cobranca(tempoDePermanencia time.Duration) (bool, float64) {
 	db, erro := dataBase.ConexaoBanco()
 	if erro != nil {
 		log.Fatal("Erro co conectar ao banco de dados")
@@ -49,7 +49,7 @@ func Cobranca(tempoDePermanencia time.Duration) bool {
 		valorCobrado = valorDiaria
 		mostraValorCobrado(valorCobrado)
 	}
-	return true
+	return true, valorCobrado
 }
 
 func mostraValorCobrado(valorCobrado float64) {

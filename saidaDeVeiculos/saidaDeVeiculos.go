@@ -71,10 +71,10 @@ func SaidaDeveiculos() {
 
 				fmt.Println("")
 
-				pagamento := cobranca.Cobranca(tempoDePermanencia)
+				pagamento, valorCobrado := cobranca.Cobranca(tempoDePermanencia)
 
 				if pagamento {
-					impressao.ImprimirSaida(id)
+					impressao.ImprimirSaida(placa, modelo, cor, valorCobrado, int64(id))
 				}
 			}
 		}
