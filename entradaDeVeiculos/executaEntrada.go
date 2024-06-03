@@ -2,6 +2,7 @@ package entradaDeVeiculos
 
 import (
 	"estacionamento/dataBase"
+	impressao "estacionamento/imprimirComprovante"
 	"fmt"
 	"log"
 	"time"
@@ -22,7 +23,7 @@ func VeiculoNoPatio(placa string) bool {
 
 	linha, err := db.Query("SELECT * FROM estacionamento.entradaDeVeiculos where placa = ?", placa)
 	if err != nil {
-		log.Fatal("Erro ao criar o statement")
+		log.Fatal("Erro ao criar o statement", err)
 	}
 	defer linha.Close()
 
@@ -67,7 +68,7 @@ func ExecutaEntrada(placa, modelo, cor string) int {
 	statement, err := db.Prepare("insert into entradaDeVeiculos (placa, modelo, cor, dataHoraEntrada, veiculoNoPatio) values (?, ?, ?, ?, ?)")
 
 	if err != nil {
-		fmt.Println("Erro ao Criar o statement", erro)
+		fmt.Println("Erro ao Criar o statement", err)
 		return 0
 	}
 	defer statement.Close()
@@ -95,6 +96,9 @@ func ExecutaEntrada(placa, modelo, cor string) int {
 	}
 
 	fmt.Println("Carro inserido com sucesso", idInserido)
+
+	impressao.ImprimirEntrada(placa, modelo, cor, idInserido)
+
 	return int(idInserido)
 
 }

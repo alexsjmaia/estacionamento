@@ -16,7 +16,7 @@ var (
 	modelo string
 )
 
-func ImprimirEntrada(pla, modelo, cor string, id int) {
+func ImprimirEntrada(pla, modelo, cor string, id int64) {
 
 	file, erro := os.Create("pla.txt")
 	if erro != nil {

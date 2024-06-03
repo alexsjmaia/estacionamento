@@ -14,7 +14,7 @@ type veiculo struct {
 	cor    string
 }
 
-func CadastrarVeiculo(placa string) bool {
+func CadastrarVeiculo(placa string) (modelo, cor string) {
 	var carro veiculo
 
 	carro.placa = placa
@@ -50,7 +50,7 @@ func CadastrarVeiculo(placa string) bool {
 	if err != nil {
 		fmt.Println("Erro ao capturar o Ultimo ID inserido", err, ultimoIdInserido)
 	}
-	fmt.Println("Veicuo cadastrado com Sucesso", ultimoIdInserido, carro.placa, carro.modelo, carro.cor)
+	fmt.Println("Veiculo cadastrado com Sucesso", ultimoIdInserido, carro.placa, carro.modelo, carro.cor)
 
 	//////////////////////////////////////////////////////////////////////////////////////////
 	//idInserido := entradaDeVeiculos.ExecutaEntrada(carro.placa, carro.modelo, carro.cor)
@@ -63,5 +63,5 @@ func CadastrarVeiculo(placa string) bool {
 	//}
 	////////////////////////////////////////////////////////////////////////////////
 
-	return true
+	return carro.modelo, carro.cor
 }

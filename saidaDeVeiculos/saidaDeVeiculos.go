@@ -2,7 +2,6 @@
 package saidadeveiculos
 
 import (
-	"estacionamento/cobranca"
 	"estacionamento/dataBase"
 	"fmt"
 	"log"
@@ -46,14 +45,14 @@ func SaidaDeveiculos() {
 
 				fmt.Println("\n", placa, modelo, cor, dataHoraEntrada, veiculoNoPatio)
 
-				dataHoraDeSaida := time.Now().Format("2006-01-02 15:04:05")
+				dataHoraDeSaida := time.Now().Format("2006-01-02T15:04:05-07:00")
 
-				dataHoraEntradaTime, err := time.Parse("2006-01-02 15:04:05", dataHoraEntrada)
+				dataHoraDeSaidaTime, err := time.Parse("2006-01-02T15:04:05-07:00", dataHoraDeSaida)
 				if err != nil {
 					panic(err.Error())
 				}
 
-				dataHoraDeSaidaTime, err := time.Parse("2006-01-02 15:04:05", dataHoraDeSaida)
+				dataHoraEntradaTime, err := time.Parse("2006-01-02T15:04:05-07:00", dataHoraEntrada)
 				if err != nil {
 					panic(err.Error())
 				}
@@ -67,9 +66,7 @@ func SaidaDeveiculos() {
 				fmt.Println("Tempo de permanencia:\t", tempoDePermanencia)
 
 				linhas()
-
 				fmt.Println("")
-				cobranca.Cobranca(tempoDePermanencia)
 			}
 		}
 	}

@@ -37,7 +37,7 @@ func Entrada() {
 
 	linha, err := db.Query("SELECT * FROM estacionamento.cadastroDeVeiculos where placa = ?", pla)
 	if err != nil {
-		log.Fatal("Erro ao criar o statement")
+		log.Fatal("Erro ao criar o statement", err)
 	}
 	defer linha.Close()
 
@@ -60,11 +60,12 @@ func Entrada() {
 		} else {
 			fmt.Println("Imprimir Comprovante")
 
-			impressao.ImprimirEntrada(placa, modelo, cor, idInserido)
+			impressao.ImprimirEntrada(placa, modelo, cor, int64(idInserido))
 		}
 
 	} else {
-		cadastroDeVeiculo.CadastrarVeiculo(pla)
+		modelo, cor := cadastroDeVeiculo.CadastrarVeiculo(pla)
+		ExecutaEntrada(pla, modelo, cor)
 	}
 
 }
