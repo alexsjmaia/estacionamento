@@ -2,7 +2,9 @@
 package saidadeveiculos
 
 import (
+	"estacionamento/cobranca"
 	"estacionamento/dataBase"
+	impressao "estacionamento/imprimirComprovante"
 	"fmt"
 	"log"
 	"time"
@@ -66,7 +68,14 @@ func SaidaDeveiculos() {
 				fmt.Println("Tempo de permanencia:\t", tempoDePermanencia)
 
 				linhas()
+
 				fmt.Println("")
+
+				pagamento := cobranca.Cobranca(tempoDePermanencia)
+
+				if pagamento {
+					impressao.ImprimirSaida(id)
+				}
 			}
 		}
 	}

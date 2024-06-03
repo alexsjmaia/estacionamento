@@ -12,7 +12,7 @@ var (
 	tempoDePermanenciaMinutos, id                                    int
 )
 
-func Cobranca(tempoDePermanencia time.Duration) float64 {
+func Cobranca(tempoDePermanencia time.Duration) bool {
 	db, erro := dataBase.ConexaoBanco()
 	if erro != nil {
 		log.Fatal("Erro co conectar ao banco de dados")
@@ -49,9 +49,13 @@ func Cobranca(tempoDePermanencia time.Duration) float64 {
 		valorCobrado = valorDiaria
 		mostraValorCobrado(valorCobrado)
 	}
-	return valorCobrado
+	return true
 }
 
 func mostraValorCobrado(valorCobrado float64) {
 	fmt.Printf("Valor Total R$ %.2f\n", valorCobrado)
+
+	formaDePagamento := FormasDePagamento(valorCobrado)
+	fmt.Println(" Pagamento em:", formaDePagamento)
+
 }
