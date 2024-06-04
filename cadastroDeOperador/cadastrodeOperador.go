@@ -22,14 +22,16 @@ func Cadastro() {
 
 	tipo = validaTipo()
 
+	// Esconder a senha quando for digitada
 	fmt.Printf("Senha:")
 	fmt.Scanln(&senha)
 
+	// Esconder a senha quando for digitada
 	fmt.Printf("Repita a senha:")
 	fmt.Scanln(&validaSenha)
 
 	if senha != validaSenha {
-		fmt.Println("Senhas Não batem")
+		fmt.Println("As senhas não são iguais")
 		Cadastro()
 	}
 
