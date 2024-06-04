@@ -5,5 +5,5 @@ type Operador struct {
 	Codigo int64  `json:"codigo"`
 	Nome   string `json:"nome"`
 	Senha  string `json:"senha"`
-	Tipo   string `json:"senha"`
+	Tipo   string `json:"tipo"`
 }
