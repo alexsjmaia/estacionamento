@@ -31,7 +31,6 @@ TELA DE CADASTRO
 
 ==========================================
 tabela de cobrança (mensalista, hora, valor adicional, valor diária)
-tabela para cadastrar 
-tabela para para guardar os acessos do usuário
+tabela para para guardar os acessos do usuário = ok
 
 
