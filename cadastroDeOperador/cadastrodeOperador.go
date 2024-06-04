@@ -1,7 +1,9 @@
 package cadastrodeoperador
 
 import (
+	"estacionamento/dataBase"
 	"fmt"
+	"log"
 )
 
 func Cadastro() {
@@ -35,7 +37,28 @@ func Cadastro() {
 		Cadastro()
 	}
 
-	fmt.Println(cod, nome, senha, tipo)
+	db, erro := dataBase.ConexaoBanco()
+	if erro != nil {
+		log.Fatal("Erro co conectar ao banco de dados")
+	}
+	defer db.Close()
+
+	statement, err := db.Prepare("insert into cadastroOperador (cod, nome, senha, tipo) values (?, ?, ?, ?)")
+
+	if err != nil {
+		fmt.Println("Erro ao Criar o statement", err)
+	}
+	defer statement.Close()
+
+	insercao, erro := statement.Exec(cod, nome, senha, tipo)
+
+	if erro != nil {
+		fmt.Println("Erro ao Montar a Inserção", insercao, erro)
+		fmt.Println(erro.Error())
+	} else {
+		fmt.Println("Dados cadastrados com sucesso", cod, nome)
+	}
+
 }
 
 func validaTipo() string {
