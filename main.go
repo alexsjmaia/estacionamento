@@ -51,6 +51,8 @@ func init() {
 		fmt.Println("Usuário não cadastrado ou senha inválida")
 		fmt.Println("Saindo do sistema...")
 		time.Sleep(time.Second * 5)
+	} else {
+		fmt.Println("Autorizado:", nome)
 	}
 }
 
@@ -83,9 +85,6 @@ func main() {
 
 func linhas() {
 	for i := 1; i < 34; i++ {
-		//if i == 1 {
-		//	fmt.Printf("|")
-		//}
 		fmt.Printf("=")
 		if i == 34 {
 			fmt.Println("|")
