@@ -1,5 +1,5 @@
 # goEstac
-* Criar um sistema de entrade e saída de véiculos
+* Criar um sistema de entrada e saída de véiculos
   * Entrada de veículo
   * Saída de veículo
   * Cadastro de placas (mensalistas)  

@@ -1,11 +1,7 @@
 package main
 
 import (
-	cadastrodeoperador "estacionamento/cadastroDeOperador"
-	cadastromensalista "estacionamento/cadastroMensalista"
 	"estacionamento/dataBase"
-	"estacionamento/entradaDeVeiculos"
-	saidadeveiculos "estacionamento/saidaDeVeiculos"
 	"fmt"
 	"log"
 	"time"
@@ -71,15 +67,15 @@ func main() {
 		fmt.Printf("\n\nDigite uma opção:")
 		fmt.Scanln(&rot)
 
-		if rot == 1 {
-			entradaDeVeiculos.Entrada()
-		} else if rot == 2 {
-			saidadeveiculos.SaidaDeveiculos()
-		} else if rot == 3 {
-			cadastrodeoperador.Cadastro()
-		} else if rot == 4 {
-			cadastromensalista.Cadastro()
-		}
+		//if rot == 1 {
+		//	entradaDeVeiculos.Entrada()
+		//} else if rot == 2 {
+		//	saidadeveiculos.SaidaDeveiculos()
+		//} else if rot == 3 {
+		//	cadastrodeoperador.Cadastro()
+		//} else if rot == 4 {
+		//	cadastromensalista.Cadastro()
+		//}
 	}
 }
 
