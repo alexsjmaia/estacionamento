@@ -1,0 +1,12 @@
+package model
+
+type TipoDePagamento struct {
+	Codigo        string `json:"codigo"`
+	Descricao     int    `json:"descricao"`
+	RegistroSaida *RegistroSaida
+}
+
+// 1 Cartao de crédito
+// 2 Cartão de débito
+// 3 Dinheiro
+// 4 PIX

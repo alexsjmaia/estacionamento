@@ -6,4 +6,5 @@ type Operador struct {
 	Nome   string `json:"nome"`
 	Senha  string `json:"senha"`
 	Tipo   string `json:"tipo"`
+	Endereco
 }

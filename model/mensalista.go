@@ -9,3 +9,5 @@ type Mensalista struct {
 	Bloqueado    bool       `json:"bloqueado"`
 	Veiculos     *[]Veiculo `json:"veiculos"`
 }
+
+// O Cliente pode ser/estar bloqueado por falta de pagamento...
