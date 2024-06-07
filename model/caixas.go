@@ -1,6 +1,6 @@
 package model
 
-import "go.starlark.net/lib/time"
+import "time"
 
 type caixas struct {
 	NumeroDoCaixa uint8     `json:"numero_caixa"`

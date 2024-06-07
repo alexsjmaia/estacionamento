@@ -1,6 +1,6 @@
 package model
 
-import "go.starlark.net/lib/time"
+import "time"
 
 type FechamentoGeral struct {
 	Data               time.Time `json:"data"`

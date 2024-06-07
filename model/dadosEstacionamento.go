@@ -1,6 +1,6 @@
 package model
 
-type DadosDaEmpresa struct {
+type DadosEstacionamento struct {
 	Cnpj               string `json:"cnpj"`
 	InscricaoMunicipal string `inscricao:"inscricao_municipal"`
 	Nome               string `json:"nome"`
