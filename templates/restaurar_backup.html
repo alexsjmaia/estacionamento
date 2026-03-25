@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RESTAURAR BACKUP | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-acao">
+    <main class="cartao-acao cartao-consulta">
+        <p class="topo-legenda">RESTAURACAO DO SISTEMA</p>
+        <h1>RESTAURAR BACKUP</h1>
+        <p>ENVIE UM ARQUIVO DE BACKUP PARA RESTAURAR OS PROGRAMAS E O BANCO DE DADOS.</p>
+
+        {% if erro %}
+            <div class="mensagem-erro">{{ erro }}</div>
+        {% endif %}
+
+        {% if mensagem_sucesso %}
+            <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="formulario-login">
+            <label for="arquivo_backup">ARQUIVO DE BACKUP</label>
+            <input type="file" id="arquivo_backup" name="arquivo_backup" required>
+
+            <label for="confirmacao_restauracao">DIGITE SIM PARA CONFIRMAR</label>
+            <input
+                type="text"
+                id="confirmacao_restauracao"
+                name="confirmacao_restauracao"
+                placeholder="SIM"
+                autocomplete="off"
+                required
+            >
+
+            <button type="submit">RESTAURAR BACKUP</button>
+        </form>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+</body>
+</html>

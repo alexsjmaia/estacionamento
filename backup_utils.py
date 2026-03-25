@@ -94,6 +94,14 @@ def criar_backup_completo():
 
             zip_file.write(sql_path, Path("database") / "estacionamento.sql")
 
+    for arquivo_antigo in BACKUP_DIR.glob("*.zip"):
+        if arquivo_antigo == backup_path:
+            continue
+        try:
+            arquivo_antigo.unlink()
+        except OSError:
+            pass
+
     return backup_path
 
 

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONSULTA ESTACIONAMENTO | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta">
+        <p class="topo-legenda">OPCAO 05</p>
+        <div class="acoes-topo">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+        <h1>CONSULTA ESTACIONAMENTO</h1>
+        <p>SELECIONE O PERIODO PARA CONSULTAR OS INDICADORES DO ESTACIONAMENTO.</p>
+
+        <form method="post" class="formulario-login">
+            <label for="data_inicial">DATA INICIAL</label>
+            <input type="date" id="data_inicial" name="data_inicial" value="{{ data_inicial }}" required>
+
+            <label for="data_final">DATA FINAL</label>
+            <input type="date" id="data_final" name="data_final" value="{{ data_final }}" required>
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            <button type="submit">CONSULTAR</button>
+        </form>
+
+        {% if resultado %}
+            <h2>GERAL</h2>
+            <section class="grade-metricas">
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">VEICULOS ENTRARAM NO PERIODO</span>
+                    <strong>{{ resultado.total_entradas }}</strong>
+                </article>
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">VEICULOS NO PATIO</span>
+                    <strong>{{ resultado.total_no_patio }}</strong>
+                </article>
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">FATURAMENTO TOTAL</span>
+                    <strong>R$ {{ resultado.faturamento_total }}</strong>
+                </article>
+            </section>
+
+            <h2>PATIO 1</h2>
+            <section class="grade-metricas">
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">VEICULOS ENTRARAM NO PERIODO</span>
+                    <strong>{{ resultado.patio_1.total_entradas }}</strong>
+                </article>
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">VEICULOS NO PATIO</span>
+                    <strong>{{ resultado.patio_1.total_no_patio }}</strong>
+                </article>
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">FATURAMENTO TOTAL</span>
+                    <strong>R$ {{ resultado.patio_1.faturamento_total }}</strong>
+                </article>
+            </section>
+
+            <h2>PATIO 2</h2>
+            <section class="grade-metricas">
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">VEICULOS ENTRARAM NO PERIODO</span>
+                    <strong>{{ resultado.patio_2.total_entradas }}</strong>
+                </article>
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">VEICULOS NO PATIO</span>
+                    <strong>{{ resultado.patio_2.total_no_patio }}</strong>
+                </article>
+                <article class="cartao-metrica">
+                    <span class="metrica-legenda">FATURAMENTO TOTAL</span>
+                    <strong>R$ {{ resultado.patio_2.faturamento_total }}</strong>
+                </article>
+            </section>
+
+            {% if patio_usuario in [1, 2] %}
+                <h2>VEICULOS NO SEU PATIO</h2>
+                <section class="cartao-listagem">
+                    {% if veiculos_no_patio %}
+                        <table class="tabela-cadastros">
+                            <thead>
+                                <tr>
+                                    <th>ENTRADA</th>
+                                    <th>PLACA</th>
+                                    <th>PATIO</th>
+                                    <th>MARCA</th>
+                                    <th>ENTRADA EM</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for veiculo in veiculos_no_patio %}
+                                    <tr>
+                                        <td>{{ veiculo.numero_entrada }}</td>
+                                        <td>{{ veiculo.placa }}</td>
+                                        <td>{{ veiculo.patio }}</td>
+                                        <td>{{ veiculo.marca }}</td>
+                                        <td>{{ veiculo.data_hora_entrada }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="mensagem-sucesso">NAO HA VEICULOS NO SEU PATIO.</p>
+                    {% endif %}
+                </section>
+            {% endif %}
+        {% endif %}
+    </main>
+</body>
+</html>

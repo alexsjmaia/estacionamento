@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FECHAMENTO DE CAIXA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta cartao-consulta-larga fechamento-caixa-layout">
+        <p class="topo-legenda">FECHAMENTO DE CAIXA</p>
+        <h1>FECHAMENTO DE CAIXA</h1>
+        <p>INFORME A DATA PARA CONSULTAR OS VALORES COBRADOS E O RESUMO AGRUPADO POR FORMA DE PAGAMENTO.</p>
+
+        <form method="post" class="formulario-login">
+            <label for="data_referencia">DATA DO FECHAMENTO</label>
+            <input type="date" id="data_referencia" name="data_referencia" value="{{ data_referencia }}" class="campo-data-curto" required>
+
+            <label for="patio">NUMERO DO PATIO</label>
+            <select id="patio" name="patio" class="campo-select" required>
+                <option value="1" {% if patio == '1' %}selected{% endif %}>PATIO 1</option>
+                <option value="2" {% if patio == '2' %}selected{% endif %}>PATIO 2</option>
+            </select>
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            <button type="submit">CONSULTAR FECHAMENTO</button>
+        </form>
+
+        {% if resultado %}
+            <section class="abas-fechamento">
+                <section class="aba-fechamento">
+                    <h2>TOTAIS POR FORMA DE PAGAMENTO</h2>
+                    <section class="grade-metricas grade-metricas-fechamento">
+                        <article class="cartao-metrica">
+                            <span class="metrica-legenda">TROCO INICIAL</span>
+                            <strong>R$ {{ resultado.totais_layout.troco_inicial }}</strong>
+                        </article>
+                        <article class="cartao-metrica">
+                            <span class="metrica-legenda">MAQUININHA</span>
+                            <strong>R$ {{ resultado.totais_layout.maquininha }}</strong>
+                        </article>
+                        <article class="cartao-metrica">
+                            <span class="metrica-legenda">DINHEIRO</span>
+                            <strong>R$ {{ resultado.totais_layout.dinheiro }}</strong>
+                        </article>
+                    </section>
+                </section>
+
+                <section class="aba-fechamento">
+                    <h2>TABELA FECHAMENTO_CAIXA</h2>
+                    <section class="grade-metricas grade-metricas-fechamento">
+                        {% if resultado.fechamento_salvo %}
+                            <article class="cartao-metrica">
+                                <span class="metrica-legenda">TROCO INICIAL</span>
+                                <strong>R$ {{ "%.2f"|format(resultado.fechamento_salvo.troco_inicial)|replace(".", ",") }}</strong>
+                            </article>
+                            <article class="cartao-metrica">
+                                <span class="metrica-legenda">MAQUININHA</span>
+                                <strong>R$ {{ "%.2f"|format(resultado.fechamento_salvo.maquininha)|replace(".", ",") }}</strong>
+                            </article>
+                            <article class="cartao-metrica">
+                                <span class="metrica-legenda">DINHEIRO</span>
+                                <strong>R$ {{ "%.2f"|format(resultado.fechamento_salvo.dinheiro)|replace(".", ",") }}</strong>
+                            </article>
+                        {% else %}
+                            <p class="mensagem-suave-lista">NAO EXISTE LANCAMENTO MANUAL NA TABELA FECHAMENTO_CAIXA PARA ESTA DATA.</p>
+                        {% endif %}
+                    </section>
+                </section>
+
+                <section class="aba-fechamento">
+                    <h2>DIFERENCA</h2>
+                    <section class="grade-metricas grade-metricas-fechamento">
+                        {% if resultado.diferencas %}
+                            <article class="cartao-metrica">
+                                <span class="metrica-legenda">TROCO INICIAL</span>
+                                <strong class="{% if resultado.diferencas.troco_inicial_negativo %}valor-negativo{% endif %}">R$ {{ resultado.diferencas.troco_inicial }}</strong>
+                            </article>
+                            <article class="cartao-metrica">
+                                <span class="metrica-legenda">MAQUININHA</span>
+                                <strong class="{% if resultado.diferencas.maquininha_negativo %}valor-negativo{% endif %}">R$ {{ resultado.diferencas.maquininha }}</strong>
+                            </article>
+                            <article class="cartao-metrica">
+                                <span class="metrica-legenda">DINHEIRO</span>
+                                <strong class="{% if resultado.diferencas.dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ resultado.diferencas.dinheiro }}</strong>
+                            </article>
+                        {% else %}
+                            <p class="mensagem-suave-lista">SEM DIFERENCA PARA EXIBIR, POIS NAO EXISTE LANCAMENTO NA TABELA FECHAMENTO_CAIXA.</p>
+                        {% endif %}
+                    </section>
+                </section>
+            </section>
+
+            {% if resultado.diferencas %}
+                <article class="cartao-metrica cartao-total-diferenca">
+                    <span class="metrica-legenda">TOTAL DA DIFERENCA DE CAIXA</span>
+                    <strong class="{% if resultado.diferencas.total_caixa_negativo %}valor-negativo{% endif %}">R$ {{ resultado.diferencas.total_caixa }}</strong>
+                </article>
+            {% endif %}
+
+        {% endif %}
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+</body>
+</html>

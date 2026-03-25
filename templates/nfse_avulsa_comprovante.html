@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COMPROVANTE NFS-E AVULSA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-comprovante">
+    <main class="area-comprovante">
+        <section class="comprovante-termico">
+            <div>ESTACIONAMENTO - SE MEGA PARK</div>
+            <div>NFS-E AVULSA</div>
+            <div class="espaco"></div>
+            <div>RPS: {{ comprovante.numero_rps }}</div>
+            {% if comprovante.numero_nfse %}
+                <div>NFS-E: {{ comprovante.numero_nfse }}</div>
+            {% endif %}
+            {% if comprovante.codigo_verificacao %}
+                <div>CODIGO VERIFICACAO: {{ comprovante.codigo_verificacao }}</div>
+            {% endif %}
+            <div>DATA: {{ comprovante.data_emissao }}</div>
+            <div>PRESTADOR: {{ comprovante.prestador_nfse.razao_social }}</div>
+            {% if comprovante.prestador_nfse.email %}
+                <div>E-MAIL: {{ comprovante.prestador_nfse.email }}</div>
+            {% endif %}
+            <div>CNPJ: {{ comprovante.prestador_nfse.cnpj }}</div>
+            <div>CCM: {{ comprovante.prestador_nfse.ccm }}</div>
+            <div>TOMADOR: {{ comprovante.documento_tomador }}</div>
+            <div>DISCRIMINACAO: {{ comprovante.discriminacao_nfse }}</div>
+            <div>VALOR TOTAL: R$ {{ comprovante.valor_servicos }}</div>
+            <div>VALOR ISS: R$ {{ comprovante.valor_iss }}</div>
+            {% if comprovante.mensagem_nfse %}
+                <div>STATUS NFS-E: {{ comprovante.mensagem_nfse }}</div>
+            {% endif %}
+        </section>
+
+        <div id="status-impressao" class="status-impressao">ENVIANDO IMPRESSAO PARA A IMPRESSORA LOCAL...</div>
+
+        <section class="acoes-comprovante">
+            <button id="botao-imprimir" class="botao-primario" type="button">IMPRIMIR NOVAMENTE</button>
+            <a href="{{ url_for('nfse_avulsa') }}" class="botao-secundario">NOVA NFS-E AVULSA</a>
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+        </section>
+    </main>
+
+    <script>
+        const statusImpressao = document.getElementById("status-impressao");
+        const botaoImprimir = document.getElementById("botao-imprimir");
+        const printPayload = {{ print_payload|default('', true)|tojson }};
+
+        async function imprimirDireto() {
+            statusImpressao.textContent = "ENVIANDO IMPRESSAO PARA A IMPRESSORA LOCAL...";
+            botaoImprimir.disabled = true;
+
+            try {
+                if (!printPayload) {
+                    throw new Error("PAYLOAD DE IMPRESSAO DA NFS-E AVULSA NAO FOI GERADO.");
+                }
+
+                const resposta = await fetch("http://127.0.0.1:8951/print-base64", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        data_base64: printPayload,
+                        printer_name: "{{ printer_name }}",
+                        document_name: "NFS-E AVULSA"
+                    })
+                });
+
+                const dados = await resposta.json();
+                if (!resposta.ok || !dados.ok) {
+                    throw new Error(dados.message || "FALHA AO IMPRIMIR NA ESTACAO.");
+                }
+
+                statusImpressao.textContent = "IMPRESSAO CONCLUIDA.";
+                botaoImprimir.disabled = false;
+            } catch (erro) {
+                statusImpressao.textContent = erro.message;
+                botaoImprimir.disabled = false;
+            }
+        }
+
+        botaoImprimir.addEventListener("click", imprimirDireto);
+        window.addEventListener("load", imprimirDireto);
+    </script>
+</body>
+</html>

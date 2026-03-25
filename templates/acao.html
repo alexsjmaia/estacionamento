@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ opcao.titulo }} | Estacionamento</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-acao">
+    <main class="cartao-acao">
+        <p class="topo-legenda">Modulo selecionado</p>
+        <h1>{{ opcao.titulo }}</h1>
+        {% if mensagem_erro %}
+            <div class="mensagem-erro">{{ mensagem_erro }}</div>
+        {% else %}
+            <p>Esta tela ainda sera implementada. A estrutura principal do sistema ja esta pronta para seguirmos para este modulo.</p>
+        {% endif %}
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-primario">Voltar ao painel</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">Sair</a>
+        </div>
+    </main>
+
+    {% if mensagem_erro %}
+        <script>
+            window.setTimeout(() => {
+                window.location.href = "{{ url_for('painel') }}";
+            }, 10000);
+        </script>
+    {% endif %}
+</body>
+</html>

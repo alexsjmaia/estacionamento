@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CANCELAMENTO | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-acao">
+    <main class="cartao-acao cartao-saida">
+        <p class="topo-legenda">OPCAO 03</p>
+        <h1>CANCELA ULTIMA ENTRADA</h1>
+
+        {% if sucesso %}
+            <div class="mensagem-sucesso">{{ mensagem }}</div>
+        {% elif exigir_confirmacao %}
+            <div class="mensagem-sucesso">{{ mensagem }}</div>
+        {% else %}
+            <div class="mensagem-erro">{{ mensagem }}</div>
+        {% endif %}
+
+        {% if movimento %}
+            <section class="resumo-saida">
+                <div><strong>ENTRADA:</strong> {{ movimento.numero_entrada }}</div>
+                <div><strong>PLACA:</strong> {{ movimento.placa }}</div>
+                <div><strong>MARCA:</strong> {{ movimento.marca }}</div>
+                <div><strong>ENTRADA EM:</strong> {{ movimento.data_hora_entrada.strftime("%d/%m/%Y %H:%M:%S") }}</div>
+            </section>
+        {% endif %}
+
+        {% if exigir_confirmacao and movimento %}
+            <form method="post" class="formulario-login">
+                <label for="confirmacao">TEM CERTEZA?</label>
+                <select id="confirmacao" name="confirmacao" class="campo-select" required>
+                    <option value="">SELECIONE</option>
+                    <option value="SIM">SIM</option>
+                    <option value="NAO">NAO</option>
+                </select>
+                <button type="submit">CONFIRMAR</button>
+            </form>
+        {% endif %}
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-primario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+</body>
+</html>

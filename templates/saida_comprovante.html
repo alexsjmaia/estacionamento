@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COMPROVANTE DE SAIDA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-comprovante">
+    <main class="area-comprovante">
+        <section class="comprovante-termico">
+            <div id="descricao-via-preview">CLIENTE - 1A VIA</div>
+            <div class="espaco"></div>
+            <div>COMPROVANTE PROVISORIO</div>
+            {% if comprovante.prestador_nfse %}
+                <div>PRESTADOR: {{ comprovante.prestador_nfse.razao_social }}</div>
+                <div>CNPJ: {{ comprovante.prestador_nfse.cnpj }}</div>
+                <div>CCM: {{ comprovante.prestador_nfse.ccm }}</div>
+            {% endif %}
+            <div class="espaco"></div>
+            <div>{{ comprovante.empresa.endereco }}</div>
+            <div>{{ comprovante.empresa.cep }}</div>
+            <div class="espaco"></div>
+            {% if comprovante.numero_rps %}
+                <div>RPS: {{ comprovante.numero_rps }}</div>
+            {% endif %}
+            {% if comprovante.mensagem_nfse %}
+                <div>STATUS NFS-E: {{ comprovante.mensagem_nfse }}</div>
+            {% endif %}
+            {% if comprovante.codigo_verificacao %}
+                <div>CODIGO VERIFICACAO: {{ comprovante.codigo_verificacao }}</div>
+            {% endif %}
+            <div class="espaco"></div>
+            {% if comprovante.discriminacao_nfse %}
+                <div>DISCRIMINACAO: {{ comprovante.discriminacao_nfse }}</div>
+            {% endif %}
+            <div class="espaco"></div>
+            <div>ESTACIONAMENTO VEICULO</div>
+            <div>PLACA {{ comprovante.placa }} - NUMERO DA ENTRADA {{ comprovante.numero_entrada }}</div>
+            <div>MARCA: {{ comprovante.marca }}</div>
+            <div class="espaco"></div>
+            <div>ENTRADA EM: {{ comprovante.data_hora_entrada }}</div>
+            <div>SAIDA EM: {{ comprovante.data_hora_saida }}</div>
+            <div>TEMPO: {{ comprovante.tempo_permanencia }}</div>
+            <div class="espaco"></div>
+            <div>VALOR COBRADO : R$ {{ comprovante.valor_cobrado }}</div>
+            {% if comprovante.valor_iss %}
+                <div>VALOR ISS: R$ {{ comprovante.valor_iss }}</div>
+            {% endif %}
+        </section>
+
+        <div id="status-impressao" class="status-impressao">ENVIANDO IMPRESSAO PARA A IMPRESSORA LOCAL...</div>
+
+        <section class="acoes-comprovante">
+            <button id="botao-imprimir" class="botao-primario" type="button">IMPRIMIR NOVAMENTE</button>
+            <a href="{{ url_for('saida_veiculo') }}" class="botao-secundario">NOVA SAIDA</a>
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+        </section>
+    </main>
+
+    <script>
+        const statusImpressao = document.getElementById("status-impressao");
+        const botaoImprimir = document.getElementById("botao-imprimir");
+        const printPayloadSaida = {{ print_payload_saida|default('', true)|tojson }};
+        const printPayloadSaidaEstabelecimento = {{ print_payload_saida_estabelecimento|default('', true)|tojson }};
+        const descricaoViaPreview = document.getElementById("descricao-via-preview");
+
+        async function imprimirDireto() {
+            statusImpressao.textContent = "ENVIANDO IMPRESSAO PARA A IMPRESSORA LOCAL...";
+            botaoImprimir.disabled = true;
+
+            try {
+                if (!printPayloadSaida || !printPayloadSaidaEstabelecimento) {
+                    throw new Error("PAYLOAD DE IMPRESSAO DA SAIDA NAO FOI GERADO.");
+                }
+
+                await imprimirVia(printPayloadSaida, "COMPROVANTE SAIDA - CLIENTE");
+                descricaoViaPreview.textContent = "ESTABELECIMENTO - 2A VIA";
+                statusImpressao.textContent = "PRIMEIRA VIA IMPRESSA. AGUARDANDO 5 SEGUNDOS PARA A SEGUNDA VIA...";
+                await aguardar(5000);
+                await imprimirVia(printPayloadSaidaEstabelecimento, "COMPROVANTE SAIDA - ESTABELECIMENTO");
+                statusImpressao.textContent = "IMPRESSAO CONCLUIDA. RETORNANDO PARA A SAIDA...";
+                window.setTimeout(() => {
+                    window.location.href = "{{ url_for('saida_veiculo') }}";
+                }, 1500);
+            } catch (erro) {
+                statusImpressao.textContent = erro.message;
+                botaoImprimir.disabled = false;
+            }
+        }
+
+        async function imprimirVia(payload, documentName) {
+            const resposta = await fetch("http://127.0.0.1:8951/print-base64", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    data_base64: payload,
+                    printer_name: "{{ printer_name }}",
+                    document_name: documentName
+                })
+            });
+
+            const dados = await resposta.json();
+            if (!resposta.ok || !dados.ok) {
+                throw new Error(dados.message || "FALHA AO IMPRIMIR NA ESTACAO.");
+            }
+        }
+
+        function aguardar(tempoMs) {
+            return new Promise((resolve) => window.setTimeout(resolve, tempoMs));
+        }
+
+        botaoImprimir.addEventListener("click", imprimirDireto);
+        window.addEventListener("load", imprimirDireto);
+    </script>
+</body>
+</html>

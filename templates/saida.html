@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIDA DE VEICULOS | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-saida">
+        <p class="topo-legenda">OPCAO 04</p>
+        <h1>SAIDA DE VEICULOS</h1>
+        <p>INFORME A PLACA OU O NUMERO DA ENTRADA, ALEM DO VALOR DA COMPRA, PARA LOCALIZAR O VEICULO NO PATIO E REGISTRAR A SAIDA.</p>
+
+        <form method="post" class="formulario-login">
+            <label for="tipo_busca">BUSCAR SAIDA POR</label>
+            <select id="tipo_busca" name="tipo_busca" class="campo-select">
+                <option value="placa" {% if tipo_busca != 'numero_entrada' %}selected{% endif %}>PLACA</option>
+                <option value="numero_entrada" {% if tipo_busca == 'numero_entrada' %}selected{% endif %}>NUMERO DA ENTRADA</option>
+            </select>
+
+            <div id="bloco-placa" class="{% if tipo_busca == 'numero_entrada' %}oculto{% endif %}">
+                <label for="placa">PLACA DO VEICULO</label>
+                <input
+                    type="text"
+                    id="placa"
+                    name="placa"
+                    value="{{ placa }}"
+                    placeholder="ABC1D23"
+                    maxlength="8"
+                    {% if tipo_busca != 'numero_entrada' %}autofocus{% endif %}
+                >
+            </div>
+
+            <div id="bloco-numero-entrada" class="{% if tipo_busca != 'numero_entrada' %}oculto{% endif %}">
+                <label for="numero_entrada">NUMERO DA ENTRADA</label>
+                <input
+                    type="text"
+                    id="numero_entrada"
+                    name="numero_entrada"
+                    value="{{ numero_entrada }}"
+                    placeholder="1903262"
+                    {% if tipo_busca == 'numero_entrada' %}autofocus{% endif %}
+                >
+            </div>
+
+            {% if movimento and dados_saida %}
+                <input type="hidden" name="confirmar_saida" value="1">
+                <input type="hidden" name="valor_compra" value="{{ valor_compra }}">
+
+                <section class="resumo-saida">
+                    <div><strong>ENTRADA:</strong> {{ movimento.numero_entrada }}</div>
+                    <div><strong>PLACA:</strong> {{ movimento.placa }}</div>
+                    <div><strong>MARCA:</strong> {{ movimento.marca }}</div>
+                    <div><strong>ENTRADA EM:</strong> {{ movimento.data_hora_entrada.strftime("%d/%m/%Y %H:%M:%S") }}</div>
+                    <div><strong>SAIDA EM:</strong> {{ dados_saida.data_hora_saida }}</div>
+                    <div><strong>TEMPO:</strong> {{ dados_saida.tempo_permanencia }}</div>
+                    {% if dados_saida.valor_compra %}
+                        <div><strong>VALOR DA COMPRA:</strong> R$ {{ dados_saida.valor_compra }}</div>
+                    {% endif %}
+                    {% if dados_saida.isento %}
+                        <div><strong>BENEFICIO:</strong> ISENTO</div>
+                    {% elif dados_saida.bonus_horas %}
+                        <div><strong>BENEFICIO:</strong> {{ dados_saida.bonus_horas }} H DE BONUS</div>
+                    {% endif %}
+                    <div><strong>VALOR:</strong> R$ {{ dados_saida.valor_cobrado }}</div>
+                </section>
+
+                <label for="forma_pagamento_id">FORMA DE PAGAMENTO</label>
+                <select
+                    id="forma_pagamento_id"
+                    name="forma_pagamento_id"
+                    class="campo-select"
+                    {% if dados_saida and dados_saida.valor_cobrado != '0,00' %}required{% endif %}
+                >
+                    <option value="">SELECIONE A FORMA DE PAGAMENTO</option>
+                    {% for item in formas_pagamento %}
+                        {% if item.descricao != 'PIX' %}
+                            <option value="{{ item.id }}" {% if forma_pagamento_id == (item.id|string) %}selected{% endif %}>
+                                {{ 'MAQUININHA' if item.descricao == 'CARTAO' else item.descricao }}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+
+                <label for="cpf">CPF OU CNPJ DO CLIENTE (OPCIONAL)</label>
+                <input
+                    type="text"
+                    id="cpf"
+                    name="cpf"
+                    value="{{ formatar_documento_tomador(cpf) if cpf else '' }}"
+                    placeholder="000.000.000-00 OU 00.000.000/0000-00"
+                    maxlength="18"
+                >
+
+                <div id="bloco-dinheiro" class="bloco-dinheiro {% if not exibir_valor_recebido %}oculto{% endif %}">
+                    <label for="valor_recebido">VALOR RECEBIDO</label>
+                    <input
+                        type="text"
+                        id="valor_recebido"
+                        name="valor_recebido"
+                        value="{{ valor_recebido }}"
+                        placeholder="0,00"
+                    >
+                    <div
+                        id="troco-dinheiro"
+                        class="mensagem-sucesso {% if troco is none %}oculto{% endif %}"
+                        data-valor-cobrado="{{ dados_saida.valor_cobrado if dados_saida else '0,00' }}"
+                    >
+                        TROCO: R$ <span id="troco-valor">{{ '%.2f'|format(troco)|replace('.', ',') if troco is not none else '0,00' }}</span>
+                    </div>
+                </div>
+
+                <button type="submit">CONFIRMAR SAIDA</button>
+            {% else %}
+                <label for="valor_compra">VALOR DA COMPRA</label>
+                <input
+                    type="text"
+                    id="valor_compra"
+                    name="valor_compra"
+                    value="{{ valor_compra }}"
+                    placeholder="0,00"
+                >
+
+                <button type="submit">LOCALIZAR VEICULO</button>
+            {% endif %}
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            {% if mensagem_sucesso %}
+                <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+            {% endif %}
+        </form>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+
+    <script>
+        const formaPagamento = document.getElementById("forma_pagamento_id");
+        const tipoBusca = document.getElementById("tipo_busca");
+        const blocoPlaca = document.getElementById("bloco-placa");
+        const blocoNumeroEntrada = document.getElementById("bloco-numero-entrada");
+        const blocoDinheiro = document.getElementById("bloco-dinheiro");
+        const valorRecebido = document.getElementById("valor_recebido");
+        const valorCompra = document.getElementById("valor_compra");
+        const cpf = document.getElementById("cpf");
+        const trocoDinheiro = document.getElementById("troco-dinheiro");
+        const trocoValor = document.getElementById("troco-valor");
+
+        function normalizarMoeda(valor) {
+            const numeros = (valor || "").replace(/\D/g, "");
+            if (!numeros) {
+                return "";
+            }
+
+            const inteiro = numeros.slice(0, -2) || "0";
+            const decimal = numeros.slice(-2).padStart(2, "0");
+            return `${parseInt(inteiro, 10)},${decimal}`;
+        }
+
+        function moedaParaNumero(valor) {
+            const normalizado = (valor || "").replace(/\./g, "").replace(",", ".");
+            const numero = parseFloat(normalizado);
+            return Number.isNaN(numero) ? null : numero;
+        }
+
+        function normalizarDocumentoTomador(valor) {
+            const numeros = (valor || "").replace(/\D/g, "").slice(0, 14);
+            if (numeros.length <= 11) {
+                if (numeros.length <= 3) {
+                    return numeros;
+                }
+                if (numeros.length <= 6) {
+                    return `${numeros.slice(0, 3)}.${numeros.slice(3)}`;
+                }
+                if (numeros.length <= 9) {
+                    return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`;
+                }
+                return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`;
+            }
+
+            if (numeros.length <= 2) {
+                return numeros;
+            }
+            if (numeros.length <= 5) {
+                return `${numeros.slice(0, 2)}.${numeros.slice(2)}`;
+            }
+            if (numeros.length <= 8) {
+                return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5)}`;
+            }
+            if (numeros.length <= 12) {
+                return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8)}`;
+            }
+            return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8, 12)}-${numeros.slice(12)}`;
+        }
+
+        function atualizarTroco() {
+            if (!valorRecebido || !trocoDinheiro || !trocoValor) {
+                return;
+            }
+
+            const valorCobrado = moedaParaNumero(trocoDinheiro.dataset.valorCobrado || "0,00");
+            const valorInformado = moedaParaNumero(valorRecebido.value);
+
+            if (valorCobrado === null || valorInformado === null) {
+                trocoDinheiro.classList.add("oculto");
+                trocoValor.textContent = "0,00";
+                return;
+            }
+
+            const troco = Math.max(0, valorInformado - valorCobrado);
+            trocoValor.textContent = troco.toFixed(2).replace(".", ",");
+            trocoDinheiro.classList.remove("oculto");
+        }
+
+        function alternarTipoBusca() {
+            if (!tipoBusca || !blocoPlaca || !blocoNumeroEntrada) {
+                return;
+            }
+
+            const buscaPorNumero = tipoBusca.value === "numero_entrada";
+            blocoPlaca.classList.toggle("oculto", buscaPorNumero);
+            blocoNumeroEntrada.classList.toggle("oculto", !buscaPorNumero);
+        }
+
+        if (tipoBusca) {
+            tipoBusca.addEventListener("change", alternarTipoBusca);
+            alternarTipoBusca();
+        }
+
+        if (formaPagamento && blocoDinheiro) {
+            const alternarDinheiro = () => {
+                const textoSelecionado = formaPagamento.options[formaPagamento.selectedIndex]?.text?.trim() || "";
+                const exibir = textoSelecionado === "DINHEIRO";
+                blocoDinheiro.classList.toggle("oculto", !exibir);
+                if (!exibir && trocoDinheiro) {
+                    trocoDinheiro.classList.add("oculto");
+                }
+                if (exibir) {
+                    atualizarTroco();
+                }
+            };
+
+            formaPagamento.addEventListener("change", alternarDinheiro);
+            alternarDinheiro();
+        }
+
+        if (valorRecebido) {
+            valorRecebido.addEventListener("input", () => {
+                valorRecebido.value = normalizarMoeda(valorRecebido.value);
+                atualizarTroco();
+            });
+
+            atualizarTroco();
+        }
+
+        if (valorCompra) {
+            valorCompra.addEventListener("input", () => {
+                valorCompra.value = normalizarMoeda(valorCompra.value);
+            });
+        }
+
+        if (cpf) {
+            cpf.addEventListener("input", () => {
+                cpf.value = normalizarDocumentoTomador(cpf.value);
+            });
+        }
+    </script>
+</body>
+</html>

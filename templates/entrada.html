@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENTRADA DE VEICULOS | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada">
+        <p class="topo-legenda">OPCAO 01</p>
+        <h1>ENTRADA DE VEICULOS</h1>
+        <p>DIGITE A PLACA PARA VERIFICAR O CADASTRO E GERAR O COMPROVANTE DE ENTRADA.</p>
+
+        {% if permitir_entrada %}
+            <form method="post" class="formulario-login">
+                <label for="placa">PLACA DO VEICULO</label>
+                <input
+                    type="text"
+                    id="placa"
+                    name="placa"
+                    value="{{ placa }}"
+                    placeholder="ABC1D23"
+                    maxlength="8"
+                    required
+                    autofocus
+                >
+
+                <label for="codigo">CODIGO DA MARCA</label>
+                <input
+                    type="text"
+                    id="codigo"
+                    name="codigo"
+                    value="{{ codigo_selecionado }}"
+                    placeholder="DIGITE O CODIGO DA MARCA"
+                    list="sugestoes-codigos-marcas"
+                    inputmode="numeric"
+                    maxlength="40"
+                    {% if exibir_cadastro %}autofocus{% endif %}
+                >
+                <datalist id="sugestoes-codigos-marcas">
+                    {% for item in codigos_marcas %}
+                        <option value="{{ item.codigo }}">{{ item.codigo }} - {{ item.marca }}</option>
+                    {% endfor %}
+                </datalist>
+
+                {% if exibir_cadastro %}
+                    <input type="hidden" name="modo_cadastro" value="1">
+                {% endif %}
+
+                {% if exibir_numero_prisma %}
+                    <label for="numero_prisma">NUMERO DO PRISMA</label>
+                    <input
+                        type="text"
+                        id="numero_prisma"
+                        name="numero_prisma"
+                        value="{{ numero_prisma }}"
+                        placeholder="SOMENTE NUMEROS"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="20"
+                    >
+                {% endif %}
+
+                {% if erro %}
+                    <div class="mensagem-erro">{{ erro }}</div>
+                {% endif %}
+
+                <button type="submit">VERIFICAR E IMPRIMIR</button>
+            </form>
+        {% else %}
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+        {% endif %}
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+
+    {% if permitir_entrada %}
+        <script>
+            const campoPlaca = document.getElementById("placa");
+            const campoCodigo = document.getElementById("codigo");
+            const formularioEntrada = document.querySelector(".formulario-login");
+
+            async function preencherCodigoPorPlaca() {
+                if (!campoPlaca || !campoCodigo) {
+                    return false;
+                }
+
+                const placa = (campoPlaca.value || "").trim().toUpperCase();
+                if (!placa) {
+                    campoCodigo.value = "";
+                    return false;
+                }
+
+                try {
+                    const resposta = await fetch(`/api/placa/${encodeURIComponent(placa)}`);
+                    if (!resposta.ok) {
+                        return false;
+                    }
+
+                    const dados = await resposta.json();
+                    if (dados.ok && dados.codigo) {
+                        campoCodigo.value = dados.marca ? `${dados.codigo} - ${dados.marca}` : dados.codigo;
+                        return true;
+                    }
+                } catch (erro) {
+                    console.debug("Nao foi possivel preencher o codigo automaticamente.", erro);
+                }
+
+                return false;
+            }
+
+            campoPlaca?.addEventListener("blur", preencherCodigoPorPlaca);
+
+            formularioEntrada?.addEventListener("keydown", async (evento) => {
+                if (evento.key !== "Enter") {
+                    return;
+                }
+
+                const alvo = evento.target;
+                if (!(alvo instanceof HTMLElement) || alvo.tagName === "BUTTON" || alvo.tagName === "TEXTAREA") {
+                    return;
+                }
+
+                evento.preventDefault();
+
+                if (alvo === campoPlaca) {
+                    await preencherCodigoPorPlaca();
+                    formularioEntrada.requestSubmit();
+                    return;
+                }
+
+                const campos = Array.from(
+                    formularioEntrada.querySelectorAll("input, select, button")
+                ).filter((elemento) => {
+                    return !elemento.disabled && elemento.offsetParent !== null;
+                });
+
+                const indiceAtual = campos.indexOf(alvo);
+                if (indiceAtual === -1) {
+                    return;
+                }
+
+                const proximoCampo = campos[indiceAtual + 1];
+                if (proximoCampo) {
+                    proximoCampo.focus();
+                    if (typeof proximoCampo.select === "function") {
+                        proximoCampo.select();
+                    }
+                    return;
+                }
+
+                formularioEntrada.requestSubmit();
+            });
+
+            if ({{ "true" if exibir_cadastro else "false" }} && campoCodigo) {
+                window.setTimeout(() => {
+                    campoCodigo.focus();
+                    if (typeof campoCodigo.select === "function") {
+                        campoCodigo.select();
+                    }
+                }, 80);
+            }
+        </script>
+    {% endif %}
+</body>
+</html>

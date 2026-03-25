@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Principal | Estacionamento</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-painel">
+    <header class="topo">
+        <div>
+            <p class="topo-legenda">Sistema de Estacionamento</p>
+            <h1>Tela Principal</h1>
+        </div>
+        <div class="topo-acoes">
+            <span>Usuario: {{ usuario }}</span>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">Sair</a>
+        </div>
+    </header>
+
+    <main class="conteudo">
+        <section class="status-banco {{ 'status-ok' if banco_ok else 'status-alerta' }}">
+            <strong>Banco de dados:</strong>
+            {{ 'conectado' if banco_ok else 'nao conectado' }}
+        </section>
+
+        {% if exibir_acoes_admin %}
+            <section class="acoes-admin">
+                <a href="{{ url_for('backup_completo', auto=1) }}" class="botao-primario">BACKUP COMPLETO</a>
+                <a href="{{ url_for('cadastra_usuarios') }}" class="botao-primario">CADASTRA USUARIOS</a>
+                <a href="{{ url_for('editar_cadastro_veiculos') }}" class="botao-primario">EDITA VEICULOS</a>
+                <a href="{{ url_for('restaurar_backup') }}" class="botao-secundario">RESTAURAR BACKUP</a>
+            </section>
+        {% endif %}
+
+        <section class="grade-opcoes">
+            {% for opcao in opcoes %}
+                <a href="{{ url_for('acao', acao_id=opcao.id) }}" class="cartao-opcao">
+                    <span class="indice">{{ "%02d" | format(loop.index) }}</span>
+                    <h2>{{ opcao.titulo }}</h2>
+                    <p>Acessar modulo</p>
+                </a>
+            {% endfor %}
+        </section>
+    </main>
+</body>
+</html>

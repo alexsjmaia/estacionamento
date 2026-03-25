@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LANCAMENTO FECHAMENTO CAIXA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta">
+        <p class="topo-legenda">LANCAMENTO FECHAMENTO CAIXA</p>
+        <h1>LANCAMENTO FECHAMENTO CAIXA</h1>
+        <p>PREENCHA OS CAMPOS DA TABELA <code>fechamento_caixa</code>. A DATA UTILIZADA SERA A DATA ATUAL.</p>
+
+        <form method="post" class="formulario-login">
+            <label for="data_referencia">DATA</label>
+            <input type="text" id="data_referencia" value="{{ data_referencia }}" readonly>
+
+            <label for="patio">NUMERO DO PATIO</label>
+            {% if patio_usuario in [1, 2] %}
+                <input type="hidden" id="patio" name="patio" value="{{ patio }}">
+                <input type="text" value="PATIO {{ patio_usuario }}" readonly>
+            {% else %}
+                <select id="patio" name="patio" class="campo-select" required>
+                    <option value="1" {% if patio == '1' %}selected{% endif %}>PATIO 1</option>
+                    <option value="2" {% if patio == '2' %}selected{% endif %}>PATIO 2</option>
+                </select>
+            {% endif %}
+
+            <label for="troco_inicial">TROCO INICIAL</label>
+            <input type="text" id="troco_inicial" name="troco_inicial" value="{{ valores.troco_inicial }}" placeholder="0,00" required>
+
+            <label for="maquininha">MAQUININHA</label>
+            <input type="text" id="maquininha" name="maquininha" value="{{ valores.maquininha }}" placeholder="0,00" required>
+
+            <label for="dinheiro">DINHEIRO</label>
+            <input type="text" id="dinheiro" name="dinheiro" value="{{ valores.dinheiro }}" placeholder="0,00" required>
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            {% if mensagem_sucesso %}
+                <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+            {% endif %}
+
+            <button type="submit">GRAVAR LANCAMENTO</button>
+        </form>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+
+    <script>
+        const camposMoeda = [
+            "troco_inicial",
+            "maquininha",
+            "dinheiro"
+        ];
+
+        function aplicarMascaraMoeda(input) {
+            const numeros = input.value.replace(/\D/g, "");
+            if (!numeros) {
+                input.value = "";
+                return;
+            }
+
+            const valor = (parseInt(numeros, 10) / 100).toFixed(2);
+            input.value = valor.replace(".", ",");
+        }
+
+        camposMoeda.forEach((id) => {
+            const campo = document.getElementById(id);
+            if (!campo) {
+                return;
+            }
+            campo.addEventListener("input", () => aplicarMascaraMoeda(campo));
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDITA VEICULOS | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-acao">
+    <main class="cartao-acao cartao-consulta cartao-consulta-larga">
+        <p class="topo-legenda">CADASTRO DE VEICULOS</p>
+        <h1>EDITA VEICULOS</h1>
+        <p>EDITE O CADASTRO DOS VEICULOS. A LISTA MOSTRA OS REGISTROS MAIS RECENTES PRIMEIRO.</p>
+
+        {% if erro %}
+            <div class="mensagem-erro">{{ erro }}</div>
+        {% endif %}
+
+        {% if mensagem_sucesso %}
+            <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+        {% endif %}
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+
+        <section class="tabela-precos">
+            {% for item in cadastros %}
+                <form method="post" class="linha-preco linha-cadastro-veiculo">
+                    <input type="hidden" name="placa_original" value="{{ item.placa }}">
+
+                    <div>
+                        <label>PLACA</label>
+                        <input type="text" name="placa" value="{{ item.placa }}" maxlength="8" required>
+                    </div>
+
+                    <div>
+                        <label>CODIGO DA MARCA</label>
+                        <input
+                            type="text"
+                            name="codigo"
+                            value="{{ item.codigo }}"
+                            list="sugestoes-codigos-marcas"
+                            inputmode="numeric"
+                            maxlength="40"
+                            required
+                        >
+                    </div>
+
+                    <div>
+                        <label>MARCA ATUAL</label>
+                        <input type="text" value="{{ item.marca }}" readonly class="campo-confirmado">
+                    </div>
+
+                    <div class="acao-cadastro-veiculo">
+                        <button type="submit">SALVAR</button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="mensagem-erro">NAO EXISTEM VEICULOS CADASTRADOS.</div>
+            {% endfor %}
+        </section>
+
+        <datalist id="sugestoes-codigos-marcas">
+            {% for item in codigos_marcas %}
+                <option value="{{ item.codigo }}">{{ item.codigo }} - {{ item.marca }}</option>
+            {% endfor %}
+        </datalist>
+    </main>
+</body>
+</html>

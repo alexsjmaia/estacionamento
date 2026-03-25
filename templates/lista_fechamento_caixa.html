@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LISTA FECHAMENTO DE CAIXA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta cartao-consulta-larga">
+        <p class="topo-legenda">LISTA FECHAMENTO DE CAIXA</p>
+        <h1>LISTA FECHAMENTO DE CAIXA</h1>
+        <p>CONSULTE OS LANCAMENTOS DO SISTEMA, DO OPERADOR E A DIFERENCA ENTRE ELES.</p>
+
+        <form method="post" class="formulario-login">
+            <label for="data_inicial">DATA INICIAL</label>
+            <input type="date" id="data_inicial" name="data_inicial" value="{{ data_inicial }}" required>
+
+            <label for="data_final">DATA FINAL</label>
+            <input type="date" id="data_final" name="data_final" value="{{ data_final }}" required>
+
+            <label for="patio">NUMERO DO PATIO</label>
+            <select id="patio" name="patio" required>
+                <option value="">SELECIONE O PATIO</option>
+                <option value="1" {% if patio == '1' %}selected{% endif %}>PATIO 1</option>
+                <option value="2" {% if patio == '2' %}selected{% endif %}>PATIO 2</option>
+            </select>
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            <button type="submit">CONSULTAR FECHAMENTOS</button>
+        </form>
+
+        <section class="lista-fechamentos">
+            {% for item in lancamentos %}
+                <article class="bloco-fechamento">
+                    <header class="bloco-fechamento-topo">
+                        <div>
+                            <strong>DATA: {{ item.data_referencia }}</strong>
+                            <span>PATIO {{ item.patio }}</span>
+                        </div>
+                        <div>
+                            <span>SIS TROCO INICIAL: R$ {{ item.sis_troco_inicial }}</span>
+                            <span>PDV TROCO INICIAL: R$ {{ item.troco_inicial }}</span>
+                            <span>RETIRADA: R$ {{ item.retirada_de_dinheiro }}</span>
+                            <span>ATUALIZADO EM: {{ item.atualizado_em }}</span>
+                        </div>
+                    </header>
+
+                    <div class="abas-fechamento">
+                        <section class="aba-fechamento">
+                            <h2>SISTEMA</h2>
+                            <div class="grade-metricas grade-metricas-fechamento">
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">TROCO INICIAL</span>
+                                    <strong class="{% if item.sis_troco_inicial_negativo %}valor-negativo{% endif %}">R$ {{ item.sis_troco_inicial }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">DINHEIRO</span>
+                                    <strong class="{% if item.sis_pagamentos_dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ item.sis_pagamentos_dinheiro }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">PIX</span>
+                                    <strong class="{% if item.sis_pagamentos_pix_negativo %}valor-negativo{% endif %}">R$ {{ item.sis_pagamentos_pix }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">CARTAO</span>
+                                    <strong class="{% if item.sis_pagamentos_cartao_negativo %}valor-negativo{% endif %}">R$ {{ item.sis_pagamentos_cartao }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">RETIRADA EM DINHEIRO</span>
+                                    <strong class="{% if item.sis_retirada_de_dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ item.sis_retirada_de_dinheiro }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">TROCO FINAL</span>
+                                    <strong class="{% if item.sis_troco_final_negativo %}valor-negativo{% endif %}">R$ {{ item.sis_troco_final }}</strong>
+                                </article>
+                            </div>
+                        </section>
+
+                        <section class="aba-fechamento">
+                            <h2>OPERADOR</h2>
+                            <div class="grade-metricas grade-metricas-fechamento">
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">TROCO INICIAL</span>
+                                    <strong class="{% if item.pdv_troco_inicial_negativo %}valor-negativo{% endif %}">R$ {{ item.troco_inicial }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">DINHEIRO</span>
+                                    <strong class="{% if item.pdv_pagamentos_dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ item.pdv_pagamentos_dinheiro }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">PIX</span>
+                                    <strong class="{% if item.pdv_pagamentos_pix_negativo %}valor-negativo{% endif %}">R$ {{ item.pdv_pagamentos_pix }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">CARTAO</span>
+                                    <strong class="{% if item.pdv_pagamentos_cartao_negativo %}valor-negativo{% endif %}">R$ {{ item.pdv_pagamentos_cartao }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">RETIRADA EM DINHEIRO</span>
+                                    <strong class="{% if item.pdv_retirada_de_dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ item.pdv_retirada_de_dinheiro }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">TROCO FINAL</span>
+                                    <strong class="{% if item.pdv_troco_final_negativo %}valor-negativo{% endif %}">R$ {{ item.pdv_troco_final }}</strong>
+                                </article>
+                            </div>
+                        </section>
+
+                        <section class="aba-fechamento">
+                            <h2>DIFERENCA</h2>
+                            <div class="grade-metricas grade-metricas-fechamento">
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">TROCO INICIAL</span>
+                                    <strong class="{% if item.dif_troco_inicial_negativo %}valor-negativo{% endif %}">R$ {{ item.dif_troco_inicial }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">DINHEIRO</span>
+                                    <strong class="{% if item.dif_dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ item.dif_dinheiro }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">PIX</span>
+                                    <strong class="{% if item.dif_pix_negativo %}valor-negativo{% endif %}">R$ {{ item.dif_pix }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">CARTAO</span>
+                                    <strong class="{% if item.dif_cartao_negativo %}valor-negativo{% endif %}">R$ {{ item.dif_cartao }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">RETIRADA EM DINHEIRO</span>
+                                    <strong class="{% if item.dif_retirada_de_dinheiro_negativo %}valor-negativo{% endif %}">R$ {{ item.dif_retirada_de_dinheiro }}</strong>
+                                </article>
+                                <article class="cartao-metrica">
+                                    <span class="metrica-legenda">TROCO FINAL</span>
+                                    <strong class="{% if item.dif_troco_final_negativo %}valor-negativo{% endif %}">R$ {{ item.dif_troco_final }}</strong>
+                                </article>
+                            </div>
+                        </section>
+                    </div>
+                </article>
+            {% else %}
+                <p class="mensagem-suave-lista">NENHUM FECHAMENTO DE CAIXA FOI ENCONTRADO PARA O FILTRO INFORMADO.</p>
+            {% endfor %}
+        </section>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+</body>
+</html>

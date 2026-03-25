@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CADASTRA PRECOS | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta">
+        <p class="topo-legenda">OPCAO 06</p>
+        <h1>CADASTRA PRECOS</h1>
+        <p>CONSULTE AS FAIXAS CADASTRADAS E ALTERE OS VALORES QUANDO NECESSARIO.</p>
+
+        {% if erro %}
+            <div class="mensagem-erro">{{ erro }}</div>
+        {% endif %}
+
+        {% if mensagem_sucesso %}
+            <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+        {% endif %}
+
+        <section class="tabela-precos">
+            {% for item in precos %}
+                <form method="post" class="linha-preco">
+                    <input type="hidden" name="preco_id" value="{{ item.id }}">
+                    <div><strong>{{ item.descricao }}</strong></div>
+                    <div>DE {{ item.hora_inicial }}H A {{ item.hora_final_exibicao }}H</div>
+                    <div>{{ item.tipo_valor }}</div>
+                    <div class="campo-preco">
+                        <span>R$</span>
+                        <input type="text" name="valor" value="{{ item.valor_formatado }}" required>
+                    </div>
+                    <button type="submit">SALVAR</button>
+                </form>
+            {% endfor %}
+        </section>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIDA GERAL DO PATIO | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-acao">
+    <main class="cartao-acao cartao-consulta">
+        <p class="topo-legenda">OPCAO 08</p>
+        <div class="acoes-topo">
+            <a href="{{ url_for('painel') }}" class="botao-primario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+        <h1>SAIDA GERAL DO PATIO</h1>
+        <p>ESTA ROTINA ENCERRA TODOS OS VEICULOS AINDA NO PATIO COM VALOR R$ 0,00 E SEM FORMA DE PAGAMENTO.</p>
+
+        {% if erro %}
+            <div class="mensagem-erro">{{ erro }}</div>
+        {% endif %}
+
+        {% if mensagem_sucesso %}
+            <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+        {% endif %}
+
+        {% if veiculos_no_patio %}
+            <section class="resumo-saida">
+                <div><strong>VEICULOS NO PATIO:</strong> {{ veiculos_no_patio|length }}</div>
+                <div>
+                    <strong>OBSERVACAO:</strong>
+                    {% if opcao_patio == "patio1" %}
+                        OS VEICULOS DO PATIO 1 SERAO ENCERRADOS COM VALOR R$ 0,00.
+                    {% elif opcao_patio == "patio2" %}
+                        OS VEICULOS DO PATIO 2 SERAO ENCERRADOS COM VALOR R$ 0,00.
+                    {% else %}
+                        TODOS OS VEICULOS SERAO ENCERRADOS COM VALOR R$ 0,00.
+                    {% endif %}
+                </div>
+            </section>
+
+            <form method="post" class="formulario-login">
+                <label for="opcao_patio">OPCAO DE BAIXA</label>
+                <select id="opcao_patio" name="opcao_patio" class="campo-select" required>
+                    <option value="patio1" {% if opcao_patio == "patio1" %}selected{% endif %}>OPCAO 1 - ZERAR PATIO 1</option>
+                    <option value="patio2" {% if opcao_patio == "patio2" %}selected{% endif %}>OPCAO 2 - ZERAR PATIO 2</option>
+                    <option value="todos" {% if opcao_patio == "todos" %}selected{% endif %}>OPCAO 3 - ZERAR TODOS OS PATIOS</option>
+                </select>
+
+                <label for="senha_saida_lote">SENHA</label>
+                <input
+                    type="password"
+                    id="senha_saida_lote"
+                    name="senha_saida_lote"
+                    value="{{ senha_confirmacao }}"
+                    placeholder="DIGITE A SENHA"
+                    autocomplete="off"
+                    required
+                >
+
+                <button type="submit">CONFIRMAR SAIDA DE TODOS OS VEICULOS</button>
+            </form>
+        {% elif not encerrados %}
+            <div class="mensagem-erro">NAO EXISTEM VEICULOS NO PATIO NESTE MOMENTO.</div>
+        {% endif %}
+
+        {% if encerrados %}
+            <section class="tabela-precos">
+                {% for item in encerrados %}
+                    <div class="linha-preco">
+                        <div><strong>{{ item.numero_entrada }}</strong></div>
+                        <div>{{ item.placa }}</div>
+                        <div>{{ item.marca }}</div>
+                        <div>{{ item.tempo_permanencia }}</div>
+                        <div>R$ 0,00</div>
+                    </div>
+                {% endfor %}
+            </section>
+        {% endif %}
+    </main>
+</body>
+</html>

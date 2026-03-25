@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BACKUP COMPLETO | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-acao">
+    <main class="cartao-acao cartao-consulta">
+        <p class="topo-legenda">BACKUP DO SISTEMA</p>
+        <h1>BACKUP COMPLETO</h1>
+        <p>ESTA ROTINA GERA UM ARQUIVO COM OS PROGRAMAS DO SISTEMA E O BANCO DE DADOS.</p>
+
+        <div id="backup-progresso" class="backup-progresso{% if not auto_iniciar %} oculto{% endif %}">
+            <div class="backup-progresso-legenda">GERANDO BACKUP...</div>
+            <div class="backup-progresso-trilha">
+                <div class="backup-progresso-barra"></div>
+            </div>
+        </div>
+
+        <form id="form-backup" method="post" action="{{ url_for('backup_completo') }}" class="oculto"></form>
+
+        {% if erro %}
+            <div class="mensagem-erro">{{ erro }}</div>
+        {% endif %}
+
+        {% if mensagem_sucesso %}
+            <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+        {% endif %}
+
+        {% if arquivo_backup %}
+            <section class="resumo-saida">
+                <div><strong>ARQUIVO:</strong> {{ arquivo_backup }}</div>
+            </section>
+
+            <div class="acoes-acao">
+                <a href="{{ url_for('download_backup', arquivo=arquivo_backup) }}" class="botao-primario">BAIXAR BACKUP</a>
+                <a href="{{ url_for('backup_completo', auto=1) }}" class="botao-secundario">GERAR NOVO BACKUP</a>
+            </div>
+        {% else %}
+            <div class="acoes-acao">
+                <a href="{{ url_for('backup_completo', auto=1) }}" class="botao-primario" id="botao-iniciar-backup">INICIAR BACKUP</a>
+            </div>
+        {% endif %}
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+
+    <script>
+        (function () {
+            const progresso = document.getElementById("backup-progresso");
+            const form = document.getElementById("form-backup");
+            const botao = document.getElementById("botao-iniciar-backup");
+            const autoIniciar = {{ "true" if auto_iniciar else "false" }};
+
+            function iniciarBackup(evento) {
+                if (evento) {
+                    evento.preventDefault();
+                }
+                progresso.classList.remove("oculto");
+                if (botao) {
+                    botao.classList.add("oculto");
+                }
+                window.setTimeout(() => form.submit(), 150);
+            }
+
+            if (botao) {
+                botao.addEventListener("click", iniciarBackup);
+            }
+
+            if (autoIniciar) {
+                iniciarBackup();
+            }
+        }());
+    </script>
+</body>
+</html>

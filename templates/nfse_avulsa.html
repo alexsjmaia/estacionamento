@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFS-E AVULSA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta">
+        <p class="topo-legenda">NFS-E AVULSA</p>
+        <h1>NFS-E AVULSA</h1>
+        {% if acesso_liberado %}
+            <p>INFORME O CPF/CNPJ, O VALOR DO SERVICO E A OBSERVACAO PARA EMITIR A NFS-E.</p>
+        {% else %}
+            <p>INFORME A SENHA PARA ACESSAR A EMISSAO DE NFS-E AVULSA.</p>
+        {% endif %}
+
+        <form method="post" class="formulario-login">
+            {% if acesso_liberado %}
+                <label for="documento_tomador">CPF/CNPJ DO CLIENTE</label>
+                <input type="text" id="documento_tomador" name="documento_tomador" value="{{ documento_tomador }}" placeholder="DIGITE O CPF OU CNPJ" maxlength="18" required autofocus>
+
+                <label for="valor_servico">VALOR DO SERVICO</label>
+                <input type="text" id="valor_servico" name="valor_servico" value="{{ valor_servico }}" placeholder="0,00" required>
+
+                <label for="observacao_nf">OBSERVACAO DA NF</label>
+                <textarea id="observacao_nf" name="observacao_nf" rows="4" required>{{ observacao_nf }}</textarea>
+            {% else %}
+                <label for="senha_acesso">SENHA</label>
+                <input type="password" id="senha_acesso" name="senha_acesso" placeholder="DIGITE A SENHA" required autofocus>
+            {% endif %}
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            <button type="submit">{% if acesso_liberado %}EMITIR{% else %}ENTRAR{% endif %}</button>
+        </form>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+
+    <script>
+        const campoDocumentoTomador = document.getElementById("documento_tomador");
+        const campoValorServico = document.getElementById("valor_servico");
+
+        function normalizarDocumentoTomador(valor) {
+            return (valor || "").replace(/\D/g, "");
+        }
+
+        function aplicarMascaraDocumentoTomador() {
+            const numeros = normalizarDocumentoTomador(campoDocumentoTomador.value);
+            if (numeros.length <= 11) {
+                const partes = [];
+                if (numeros.length > 0) partes.push(numeros.slice(0, 3));
+                if (numeros.length > 3) partes.push(numeros.slice(3, 6));
+                if (numeros.length > 6) partes.push(numeros.slice(6, 9));
+                let texto = partes.join(".");
+                if (numeros.length > 9) {
+                    texto += "-" + numeros.slice(9, 11);
+                }
+                campoDocumentoTomador.value = texto;
+                return;
+            }
+
+            let texto = numeros.slice(0, 2);
+            if (numeros.length > 2) texto += "." + numeros.slice(2, 5);
+            if (numeros.length > 5) texto += "." + numeros.slice(5, 8);
+            if (numeros.length > 8) texto += "/" + numeros.slice(8, 12);
+            if (numeros.length > 12) texto += "-" + numeros.slice(12, 14);
+            campoDocumentoTomador.value = texto;
+        }
+
+        function aplicarMascaraMoeda(input) {
+            const numeros = input.value.replace(/\D/g, "");
+            if (!numeros) {
+                input.value = "";
+                return;
+            }
+
+            const valor = (parseInt(numeros, 10) / 100).toFixed(2);
+            input.value = valor.replace(".", ",");
+        }
+
+        campoDocumentoTomador?.addEventListener("input", aplicarMascaraDocumentoTomador);
+        campoValorServico?.addEventListener("input", () => aplicarMascaraMoeda(campoValorServico));
+    </script>
+</body>
+</html>

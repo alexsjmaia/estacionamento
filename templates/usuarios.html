@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CADASTRA USUARIOS | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-entrada">
+    <main class="cartao-entrada cartao-consulta">
+        <p class="topo-legenda">CADASTRO DE USUARIOS</p>
+        <h1>CADASTRA USUARIOS</h1>
+        <p>SOMENTE O USUARIO ROOT PODE CADASTRAR, EDITAR OU EXCLUIR USUARIOS.</p>
+
+        <form method="post" class="formulario-login">
+            <input type="hidden" name="acao_usuario" value="cadastrar">
+
+            <label for="usuario">USUARIO</label>
+            <input type="text" id="usuario" name="usuario" required>
+
+            <label for="senha">SENHA</label>
+            <input type="text" id="senha" name="senha" required>
+
+            <label for="endereco">ENDERECO</label>
+            <input type="text" id="endereco" name="endereco" required>
+
+            <label for="cep">CEP</label>
+            <input type="text" id="cep" name="cep" placeholder="00000-000" required>
+
+            <label for="patio">PATIO</label>
+            <input type="text" id="patio" name="patio" placeholder="1 OU 2">
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            {% if mensagem_sucesso %}
+                <div class="mensagem-sucesso">{{ mensagem_sucesso }}</div>
+            {% endif %}
+
+            <button type="submit">CADASTRAR USUARIO</button>
+        </form>
+
+        <section class="tabela-precos">
+            {% for item in usuarios %}
+                <form method="post" class="linha-usuario">
+                    <input type="hidden" name="usuario_original" value="{{ item.usuario }}">
+
+                    <div class="grupo-usuario">
+                        <label>USUARIO</label>
+                        <input
+                            type="text"
+                            name="usuario"
+                            value="{{ item.usuario }}"
+                            {% if item.usuario|lower == 'root' %}readonly{% endif %}
+                            required
+                        >
+                    </div>
+
+                    <div class="grupo-usuario">
+                        <label>SENHA</label>
+                        <input type="text" name="senha" value="" placeholder="NOVA SENHA" required>
+                    </div>
+
+                    <div class="grupo-usuario">
+                        <label>ENDERECO</label>
+                        <input type="text" name="endereco" value="{{ item.endereco }}" required>
+                    </div>
+
+                    <div class="grupo-usuario">
+                        <label>CEP</label>
+                        <input type="text" name="cep" value="{{ item.cep }}" required>
+                    </div>
+
+                    <div class="grupo-usuario">
+                        <label>PATIO</label>
+                        <input type="text" name="patio" value="{{ item.patio or '' }}">
+                    </div>
+
+                    <div class="acoes-usuario">
+                        <button type="submit" name="acao_usuario" value="editar">SALVAR</button>
+                        {% if item.usuario|lower != 'root' %}
+                            <button type="submit" name="acao_usuario" value="deletar" class="botao-secundario">EXCLUIR</button>
+                        {% else %}
+                            <span class="legenda-bloqueio">ROOT NAO PODE SER EXCLUIDO</span>
+                        {% endif %}
+                    </div>
+                </form>
+            {% endfor %}
+        </section>
+
+        <div class="acoes-acao">
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+            <a href="{{ url_for('logout') }}" class="botao-secundario">SAIR</a>
+        </div>
+    </main>
+</body>
+</html>

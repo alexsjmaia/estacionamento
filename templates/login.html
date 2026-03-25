@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Estacionamento</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-login">
+    <main class="cartao-login">
+        <div class="marca">
+            <span class="marca-badge">EST</span>
+            <div>
+                <h1>Sistema de Estacionamento</h1>
+                <p>Acesso ao painel principal</p>
+            </div>
+        </div>
+
+        <form method="post" class="formulario-login">
+            <label for="usuario">Usuario</label>
+            <input type="text" id="usuario" name="usuario" placeholder="Digite o usuario" required autofocus>
+
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" name="senha" placeholder="Digite a senha" required>
+
+            {% if erro %}
+                <div class="mensagem-erro">{{ erro }}</div>
+            {% endif %}
+
+            <button type="submit">Entrar</button>
+        </form>
+
+        <footer class="credenciais">
+            <strong>Autenticacao:</strong> usuarios cadastrados na tabela <code>usuarios</code>
+        </footer>
+    </main>
+</body>
+</html>

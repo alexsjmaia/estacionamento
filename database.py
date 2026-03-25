@@ -373,6 +373,77 @@ def cadastrar_placa(placa, codigo):
     return None
 
 
+def listar_cadastros_veiculos():
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    UPPER(p.placa) AS placa,
+                    p.codigo,
+                    UPPER(p.marca) AS marca,
+                    MAX(v.id) AS ultimo_movimento_id
+                FROM placas p
+                LEFT JOIN veiculos v ON v.placa = p.placa
+                GROUP BY p.placa, p.codigo, p.marca
+                ORDER BY ultimo_movimento_id DESC, p.placa DESC
+                """
+            )
+            return cursor.fetchall()
+    except Error:
+        return []
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return []
+
+
+def atualizar_cadastro_veiculo(placa_original, placa_nova, codigo):
+    placa_original = (placa_original or "").strip().upper()
+    placa_nova = (placa_nova or "").strip().upper()
+    codigo_info = buscar_codigo_marca(codigo)
+    if not placa_original or not placa_nova or not codigo_info:
+        return False
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                UPDATE placas
+                SET
+                    placa = %s,
+                    codigo = %s,
+                    marca = %s
+                WHERE placa = %s
+                """,
+                (placa_nova, codigo_info["codigo"], codigo_info["marca"], placa_original),
+            )
+            connection.commit()
+            return cursor.rowcount > 0
+    except Error:
+        if connection is not None and connection.is_connected():
+            connection.rollback()
+        return False
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return False
+
+
 def gerar_numero_entrada_diario(data_referencia=None):
     data_referencia = data_referencia or datetime.now()
     prefixo = data_referencia.strftime("%d%m%y")
@@ -388,10 +459,10 @@ def gerar_numero_entrada_diario(data_referencia=None):
                 SELECT numero_entrada
                 FROM veiculos
                 WHERE numero_entrada LIKE %s
-                ORDER BY numero_entrada DESC
+                ORDER BY CAST(SUBSTRING(numero_entrada, %s) AS UNSIGNED) DESC
                 LIMIT 1
                 """,
-                (f"{prefixo}%",),
+                (f"{prefixo}%", len(prefixo) + 1),
             )
             registro = cursor.fetchone()
             if registro and registro.get("numero_entrada"):
@@ -424,6 +495,20 @@ def registrar_entrada_veiculo(placa, numero_entrada, data_hora_entrada, patio=No
         connection = mysql.connector.connect(**get_db_config())
         if connection.is_connected():
             cursor = connection.cursor()
+            cursor.execute(
+                """
+                SELECT id
+                FROM veiculos
+                WHERE placa = %s
+                  AND data_hora_saida IS NULL
+                ORDER BY data_hora_entrada DESC
+                LIMIT 1
+                """,
+                (placa,),
+            )
+            if cursor.fetchone():
+                return None
+
             cursor.execute(
                 """
                 INSERT INTO veiculos (
@@ -724,36 +809,40 @@ def registrar_saida_veiculo(
         if connection.is_connected():
             cursor = connection.cursor(buffered=True)
             numero_rps = None
+            valor_cobrado_float = float(valor_cobrado or 0)
+            cpf_informado = bool((cpf or "").strip())
+            pagamento_maquininha = (forma_pagamento or "").strip().upper() in {"CARTAO", "CARTÃO", "MAQUININHA"}
 
-            cursor.execute(
-                """
-                SELECT ultimo_numero_rps
-                FROM controle_rps
-                WHERE serie_rps = %s
-                FOR UPDATE
-                """,
-                (serie_rps,),
-            )
-            controle = cursor.fetchone()
-            if controle:
-                numero_rps = int(controle[0] or 0) + 1
+            if valor_cobrado_float > 0 and (cpf_informado or pagamento_maquininha):
                 cursor.execute(
                     """
-                    UPDATE controle_rps
-                    SET ultimo_numero_rps = %s
+                    SELECT ultimo_numero_rps
+                    FROM controle_rps
                     WHERE serie_rps = %s
+                    FOR UPDATE
                     """,
-                    (numero_rps, serie_rps),
+                    (serie_rps,),
                 )
-            else:
-                numero_rps = 1
-                cursor.execute(
-                    """
-                    INSERT INTO controle_rps (serie_rps, ultimo_numero_rps)
-                    VALUES (%s, %s)
-                    """,
-                    (serie_rps, numero_rps),
-                )
+                controle = cursor.fetchone()
+                if controle:
+                    numero_rps = int(controle[0] or 0) + 1
+                    cursor.execute(
+                        """
+                        UPDATE controle_rps
+                        SET ultimo_numero_rps = %s
+                        WHERE serie_rps = %s
+                        """,
+                        (numero_rps, serie_rps),
+                    )
+                else:
+                    numero_rps = 1
+                    cursor.execute(
+                        """
+                        INSERT INTO controle_rps (serie_rps, ultimo_numero_rps)
+                        VALUES (%s, %s)
+                        """,
+                        (serie_rps, numero_rps),
+                    )
 
             cursor.execute(
                 """
@@ -770,7 +859,9 @@ def registrar_saida_veiculo(
                 (data_hora_saida, tempo_permanencia, valor_cobrado, forma_pagamento, cpf, numero_rps, registro_id),
             )
             connection.commit()
-            return numero_rps if cursor.rowcount > 0 else None
+            if cursor.rowcount > 0:
+                return {"ok": True, "numero_rps": numero_rps}
+            return None
     except Error:
         if connection is not None and connection.is_connected():
             connection.rollback()
@@ -858,27 +949,31 @@ def buscar_ultima_entrada_no_patio_por_patio(patio):
     return None
 
 
-def listar_veiculos_no_patio():
+def listar_veiculos_no_patio(patio=None):
     connection = None
     cursor = None
     try:
         connection = mysql.connector.connect(**get_db_config())
         if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
-            cursor.execute(
-                """
+            sql = """
                 SELECT
                     v.id,
                     v.numero_entrada,
                     v.data_hora_entrada,
                     UPPER(v.placa) AS placa,
-                    UPPER(p.marca) AS marca
+                    UPPER(COALESCE(p.marca, '')) AS marca,
+                    v.patio
                 FROM veiculos v
-                INNER JOIN placas p ON p.placa = v.placa
+                LEFT JOIN placas p ON p.placa = v.placa
                 WHERE v.data_hora_saida IS NULL
-                ORDER BY v.data_hora_entrada
-                """
-            )
+            """
+            parametros = []
+            if patio not in (None, "", 0):
+                sql += " AND v.patio = %s"
+                parametros.append(patio)
+            sql += " ORDER BY v.data_hora_entrada"
+            cursor.execute(sql, tuple(parametros))
             return cursor.fetchall()
     except Error:
         return []
@@ -891,11 +986,11 @@ def listar_veiculos_no_patio():
     return []
 
 
-def registrar_saida_lote(data_hora_saida):
+def registrar_saida_lote(data_hora_saida, patio=None):
     if data_hora_saida is None:
         return []
 
-    veiculos_no_patio = listar_veiculos_no_patio()
+    veiculos_no_patio = listar_veiculos_no_patio(patio)
     if not veiculos_no_patio:
         return []
 
@@ -991,6 +1086,57 @@ def cancelar_ultima_entrada(registro_id):
     return False
 
 
+def obter_proximo_numero_rps(serie_rps="RPS"):
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(buffered=True)
+            cursor.execute(
+                """
+                SELECT ultimo_numero_rps
+                FROM controle_rps
+                WHERE serie_rps = %s
+                FOR UPDATE
+                """,
+                (serie_rps,),
+            )
+            controle = cursor.fetchone()
+            if controle:
+                numero_rps = int(controle[0] or 0) + 1
+                cursor.execute(
+                    """
+                    UPDATE controle_rps
+                    SET ultimo_numero_rps = %s
+                    WHERE serie_rps = %s
+                    """,
+                    (numero_rps, serie_rps),
+                )
+            else:
+                numero_rps = 1
+                cursor.execute(
+                    """
+                    INSERT INTO controle_rps (serie_rps, ultimo_numero_rps)
+                    VALUES (%s, %s)
+                    """,
+                    (serie_rps, numero_rps),
+                )
+            connection.commit()
+            return numero_rps
+    except Error:
+        if connection is not None and connection.is_connected():
+            connection.rollback()
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
 def consultar_estacionamento(data_inicial, data_final):
     if not data_inicial or not data_final:
         return None
@@ -1070,6 +1216,522 @@ def consultar_estacionamento(data_inicial, data_final):
             connection.close()
 
     return None
+
+
+def consultar_fechamento_por_data(data_referencia, patio=None):
+    if not data_referencia:
+        return None
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            sql_lancamentos = """
+                SELECT
+                    id,
+                    numero_entrada,
+                    UPPER(placa) AS placa,
+                    COALESCE(patio, 0) AS patio,
+                    data_hora_saida,
+                    UPPER(COALESCE(forma_pagamento, 'NAO INFORMADO')) AS forma_pagamento,
+                    COALESCE(valor_cobrado, 0) AS valor_cobrado
+                FROM veiculos
+                WHERE DATE(data_hora_saida) = %s
+            """
+            parametros = [data_referencia]
+            if patio not in (None, "", 0):
+                sql_lancamentos += " AND patio = %s"
+                parametros.append(patio)
+            sql_lancamentos += " ORDER BY data_hora_saida, id"
+            cursor.execute(sql_lancamentos, tuple(parametros))
+            lancamentos = cursor.fetchall()
+
+            sql_totais = """
+                SELECT
+                    UPPER(COALESCE(forma_pagamento, 'NAO INFORMADO')) AS forma_pagamento,
+                    COALESCE(SUM(valor_cobrado), 0) AS total
+                FROM veiculos
+                WHERE DATE(data_hora_saida) = %s
+            """
+            parametros_totais = [data_referencia]
+            if patio not in (None, "", 0):
+                sql_totais += " AND patio = %s"
+                parametros_totais.append(patio)
+            sql_totais += """
+                GROUP BY UPPER(COALESCE(forma_pagamento, 'NAO INFORMADO'))
+                ORDER BY forma_pagamento
+            """
+            cursor.execute(sql_totais, tuple(parametros_totais))
+            totais = cursor.fetchall()
+
+            sql_total = """
+                SELECT COALESCE(SUM(valor_cobrado), 0) AS total_geral
+                FROM veiculos
+                WHERE DATE(data_hora_saida) = %s
+            """
+            parametros_total = [data_referencia]
+            if patio not in (None, "", 0):
+                sql_total += " AND patio = %s"
+                parametros_total.append(patio)
+            cursor.execute(sql_total, tuple(parametros_total))
+            total_geral = float((cursor.fetchone() or {}).get("total_geral") or 0)
+
+            return {
+                "lancamentos": lancamentos,
+                "totais": totais,
+                "total_geral": total_geral,
+            }
+    except Error:
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
+def obter_fechamento_caixa_por_data(data_referencia, patio=None):
+    if not data_referencia:
+        return None
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    data,
+                    patio,
+                    troco_inicial,
+                    maquininha,
+                    dinheiro
+                FROM fechamento_caixa
+                WHERE data = %s
+                  AND patio = %s
+                LIMIT 1
+                """,
+                (data_referencia, patio),
+            )
+            return cursor.fetchone()
+    except Error:
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
+def salvar_fechamento_caixa(data_referencia, maquininha, dinheiro, patio=1):
+    if not data_referencia:
+        return False
+
+    fechamento_atual = obter_fechamento_caixa_por_data(data_referencia, patio) or {}
+    troco_inicial = float(fechamento_atual.get("troco_inicial") or 0)
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO fechamento_caixa (
+                    data,
+                    patio,
+                    troco_inicial,
+                    maquininha,
+                    dinheiro
+                ) VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    troco_inicial = VALUES(troco_inicial),
+                    maquininha = VALUES(maquininha),
+                    dinheiro = VALUES(dinheiro)
+                """,
+                (
+                    data_referencia,
+                    patio,
+                    troco_inicial,
+                    maquininha,
+                    dinheiro,
+                ),
+            )
+            connection.commit()
+            return {
+                "troco_inicial": float(troco_inicial),
+                "maquininha": float(maquininha),
+                "dinheiro": float(dinheiro),
+            }
+    except Error:
+        if connection is not None and connection.is_connected():
+            connection.rollback()
+        return False
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return False
+
+
+def salvar_fechamento_caixa_manual(
+    data_referencia,
+    patio,
+    troco_inicial,
+    maquininha,
+    dinheiro,
+):
+    if not data_referencia or patio in (None, ""):
+        return False
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO fechamento_caixa (
+                    data,
+                    patio,
+                    troco_inicial,
+                    maquininha,
+                    dinheiro
+                ) VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    troco_inicial = VALUES(troco_inicial),
+                    maquininha = VALUES(maquininha),
+                    dinheiro = VALUES(dinheiro)
+                """,
+                (
+                    data_referencia,
+                    patio,
+                    troco_inicial,
+                    maquininha,
+                    dinheiro,
+                ),
+            )
+            connection.commit()
+            return cursor.rowcount >= 0
+    except Error:
+        if connection is not None and connection.is_connected():
+            connection.rollback()
+        return False
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return False
+
+
+def obter_resumo_sistema_fechamento(data_referencia, patio):
+    if not data_referencia or patio in (None, ""):
+        return None
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN UPPER(COALESCE(forma_pagamento, '')) = 'DINHEIRO' THEN valor_cobrado ELSE 0 END), 0) AS sis_pagamentos_dinheiro,
+                    COALESCE(SUM(CASE WHEN UPPER(COALESCE(forma_pagamento, '')) = 'PIX' THEN valor_cobrado ELSE 0 END), 0) AS sis_pagamentos_pix,
+                    COALESCE(SUM(CASE WHEN UPPER(COALESCE(forma_pagamento, '')) IN ('CARTAO', 'CARTÃO', 'MAQUININHA') THEN valor_cobrado ELSE 0 END), 0) AS sis_pagamentos_cartao
+                FROM veiculos
+                WHERE DATE(data_hora_saida) = %s
+                  AND patio = %s
+                  AND data_hora_saida IS NOT NULL
+                """,
+                (data_referencia, patio),
+            )
+            resumo = cursor.fetchone() or {}
+            return {
+                "sis_pagamentos_dinheiro": float(resumo.get("sis_pagamentos_dinheiro") or 0),
+                "sis_pagamentos_pix": float(resumo.get("sis_pagamentos_pix") or 0),
+                "sis_pagamentos_cartao": float(resumo.get("sis_pagamentos_cartao") or 0),
+            }
+    except Error:
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
+def obter_troco_final_sistema_anterior(data_referencia, patio):
+    if not data_referencia or patio in (None, ""):
+        return 0.0
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT sis_troco_final
+                FROM fechamento_caixa
+                WHERE sis_numero_do_patio = %s
+                  AND data_referencia < %s
+                ORDER BY data_referencia DESC
+                LIMIT 1
+                """,
+                (patio, data_referencia),
+            )
+            registro = cursor.fetchone()
+            return float((registro or {}).get("sis_troco_final") or 0)
+    except Error:
+        return 0.0
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return 0.0
+
+
+def buscar_conciliacao_caixa(data_referencia, patio):
+    if not data_referencia or patio in (None, ""):
+        return None
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    data_referencia,
+                    pdv_numero_do_patio,
+                    sis_troco_inicial,
+                    troco_inicial,
+                    retirada_de_dinheiro,
+                    sis_pagamentos_dinheiro,
+                    sis_pagamentos_pix,
+                    sis_pagamentos_cartao,
+                    sis_troco_final,
+                    pdv_pagamentos_dinheiro,
+                    pdv_pagamentos_pix,
+                    pdv_pagamentos_cartao,
+                    pdv_troco_final
+                FROM conciliacao_caixa
+                WHERE data_referencia = %s
+                  AND pdv_numero_do_patio = %s
+                LIMIT 1
+                """,
+                (data_referencia, patio),
+            )
+            return cursor.fetchone()
+    except Error:
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
+def salvar_fechamento_e_conciliacao_caixa(
+    data_referencia,
+    patio,
+    troco_inicial,
+    retirada_de_dinheiro,
+    pdv_pagamentos_dinheiro,
+    pdv_pagamentos_pix,
+    pdv_pagamentos_cartao,
+    pdv_troco_final,
+):
+    if not data_referencia or patio in (None, ""):
+        return False
+
+    resumo = obter_resumo_sistema_fechamento(data_referencia, patio)
+    if resumo is None:
+        return False
+
+    sis_troco_inicial = obter_troco_final_sistema_anterior(data_referencia, patio)
+    sis_pagamentos_dinheiro = float(resumo["sis_pagamentos_dinheiro"])
+    sis_pagamentos_pix = float(resumo["sis_pagamentos_pix"])
+    sis_pagamentos_cartao = float(resumo["sis_pagamentos_cartao"])
+    sis_troco_final = round(float(sis_troco_inicial) + sis_pagamentos_dinheiro - float(retirada_de_dinheiro), 2)
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO fechamento_caixa (
+                    data_referencia,
+                    sis_numero_do_patio,
+                    sis_troco_inicial,
+                    troco_inicial,
+                    retirada_de_dinheiro,
+                    sis_pagamentos_dinheiro,
+                    sis_pagamentos_pix,
+                    sis_pagamentos_cartao,
+                    sis_troco_final
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    sis_troco_inicial = VALUES(sis_troco_inicial),
+                    troco_inicial = VALUES(troco_inicial),
+                    retirada_de_dinheiro = VALUES(retirada_de_dinheiro),
+                    sis_pagamentos_dinheiro = VALUES(sis_pagamentos_dinheiro),
+                    sis_pagamentos_pix = VALUES(sis_pagamentos_pix),
+                    sis_pagamentos_cartao = VALUES(sis_pagamentos_cartao),
+                    sis_troco_final = VALUES(sis_troco_final)
+                """,
+                (
+                    data_referencia,
+                    patio,
+                    sis_troco_inicial,
+                    troco_inicial,
+                    retirada_de_dinheiro,
+                    sis_pagamentos_dinheiro,
+                    sis_pagamentos_pix,
+                    sis_pagamentos_cartao,
+                    sis_troco_final,
+                ),
+            )
+            cursor.execute(
+                """
+                INSERT INTO conciliacao_caixa (
+                    data_referencia,
+                    pdv_numero_do_patio,
+                    sis_troco_inicial,
+                    troco_inicial,
+                    retirada_de_dinheiro,
+                    sis_pagamentos_dinheiro,
+                    sis_pagamentos_pix,
+                    sis_pagamentos_cartao,
+                    sis_troco_final,
+                    pdv_pagamentos_dinheiro,
+                    pdv_pagamentos_pix,
+                    pdv_pagamentos_cartao,
+                    pdv_troco_final
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    sis_troco_inicial = VALUES(sis_troco_inicial),
+                    troco_inicial = VALUES(troco_inicial),
+                    retirada_de_dinheiro = VALUES(retirada_de_dinheiro),
+                    sis_pagamentos_dinheiro = VALUES(sis_pagamentos_dinheiro),
+                    sis_pagamentos_pix = VALUES(sis_pagamentos_pix),
+                    sis_pagamentos_cartao = VALUES(sis_pagamentos_cartao),
+                    sis_troco_final = VALUES(sis_troco_final),
+                    pdv_pagamentos_dinheiro = VALUES(pdv_pagamentos_dinheiro),
+                    pdv_pagamentos_pix = VALUES(pdv_pagamentos_pix),
+                    pdv_pagamentos_cartao = VALUES(pdv_pagamentos_cartao),
+                    pdv_troco_final = VALUES(pdv_troco_final)
+                """,
+                (
+                    data_referencia,
+                    patio,
+                    sis_troco_inicial,
+                    troco_inicial,
+                    retirada_de_dinheiro,
+                    sis_pagamentos_dinheiro,
+                    sis_pagamentos_pix,
+                    sis_pagamentos_cartao,
+                    sis_troco_final,
+                    pdv_pagamentos_dinheiro,
+                    pdv_pagamentos_pix,
+                    pdv_pagamentos_cartao,
+                    pdv_troco_final,
+                ),
+            )
+            connection.commit()
+            return {
+                "sis_pagamentos_dinheiro": sis_pagamentos_dinheiro,
+                "sis_pagamentos_pix": sis_pagamentos_pix,
+                "sis_pagamentos_cartao": sis_pagamentos_cartao,
+                "sis_troco_final": sis_troco_final,
+            }
+    except Error:
+        if connection is not None and connection.is_connected():
+            connection.rollback()
+        return False
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return False
+
+
+def listar_fechamentos_caixa(data_inicial, data_final, patio=None):
+    if not data_inicial or not data_final:
+        return []
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            sql = """
+                SELECT
+                    data_referencia,
+                    pdv_numero_do_patio,
+                    sis_troco_inicial,
+                    troco_inicial,
+                    retirada_de_dinheiro,
+                    sis_pagamentos_dinheiro,
+                    sis_pagamentos_pix,
+                    sis_pagamentos_cartao,
+                    sis_troco_final,
+                    pdv_pagamentos_dinheiro,
+                    pdv_pagamentos_pix,
+                    pdv_pagamentos_cartao,
+                    pdv_troco_final,
+                    atualizado_em
+                FROM conciliacao_caixa
+                WHERE data_referencia BETWEEN %s AND %s
+            """
+            parametros = [data_inicial, data_final]
+            if patio not in (None, ""):
+                sql += " AND pdv_numero_do_patio = %s"
+                parametros.append(patio)
+
+            sql += " ORDER BY data_referencia DESC, pdv_numero_do_patio"
+            cursor.execute(sql, tuple(parametros))
+            return cursor.fetchall()
+    except Error:
+        return []
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return []
 
 
 def atualizar_preco(preco_id, valor):
@@ -1226,6 +1888,63 @@ def registrar_log_nfse(
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (veiculo_id, numero_rps, xml_rps, resposta_nfse, status_envio, mensagem_retorno, numero_nfse),
+            )
+            connection.commit()
+            return cursor.lastrowid
+    except Error:
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
+def registrar_log_nfse_avulsa(
+    numero_rps,
+    documento_tomador,
+    valor_servico,
+    observacao_nf,
+    xml_rps,
+    resposta_nfse,
+    status_envio,
+    mensagem_retorno=None,
+    numero_nfse=None,
+):
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO nfse_avulsa_envios (
+                    numero_rps,
+                    documento_tomador,
+                    valor_servico,
+                    observacao_nf,
+                    xml_rps,
+                    resposta_nfse,
+                    status_envio,
+                    mensagem_retorno,
+                    numero_nfse
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    numero_rps,
+                    documento_tomador,
+                    valor_servico,
+                    observacao_nf,
+                    xml_rps,
+                    resposta_nfse,
+                    status_envio,
+                    mensagem_retorno,
+                    numero_nfse,
+                ),
             )
             connection.commit()
             return cursor.lastrowid

@@ -1,0 +1,78 @@
+PASSO A PASSO DE IMPRESSAO LOCAL NO LINUX MINT
+
+OBJETIVO
+ESTE PASSO A PASSO MOSTRA COMO FAZER A IMPRESSAO LOCAL FUNCIONAR
+NO LINUX MINT USANDO A IMPRESSORA ELGIN I9 E O SISTEMA DE ESTACIONAMENTO.
+
+ARQUIVOS NECESSARIOS
+1. LOCAL_PRINT_AGENT_LINUX.py
+2. start_print_agent_linux.sh
+
+ETAPA 1 - INSTALAR O CUPS
+sudo apt update
+sudo apt install cups cups-client -y
+sudo systemctl enable cups
+sudo systemctl start cups
+
+ETAPA 2 - CONFIGURAR A IMPRESSORA
+1. CONECTE A ELGIN I9.
+2. ABRA:
+   http://localhost:631
+3. ADICIONE A IMPRESSORA COM O NOME:
+   Elgin
+
+ETAPA 3 - TESTAR A IMPRESSORA
+lpstat -p
+echo "TESTE ELGIN I9" | lp -d Elgin
+
+ETAPA 4 - COPIAR O AGENTE
+1. COPIE:
+   LOCAL_PRINT_AGENT_LINUX.py
+   start_print_agent_linux.sh
+2. EXEMPLO DE DESTINO:
+   /home/caixa/estacoes
+
+ETAPA 5 - TESTAR O AGENTE MANUALMENTE
+cd /home/caixa/estacoes
+python3 LOCAL_PRINT_AGENT_LINUX.py
+
+TESTE:
+curl http://127.0.0.1:8951/health
+
+ETAPA 6 - SUBIR AUTOMATICAMENTE NO LINUX MINT
+mkdir -p ~/.config/autostart
+nano ~/.config/autostart/estacionamento-print-agent.desktop
+
+CONTEUDO:
+
+[Desktop Entry]
+Type=Application
+Name=Agente Impressao Estacionamento
+Exec=python3 /home/caixa/estacoes/LOCAL_PRINT_AGENT_LINUX.py
+Path=/home/caixa/estacoes
+Terminal=false
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+
+ETAPA 7 - TESTAR O AUTOSTART
+gtk-launch estacionamento-print-agent.desktop
+ps aux | grep LOCAL_PRINT_AGENT_LINUX.py
+curl http://127.0.0.1:8951/health
+
+ETAPA 8 - TESTE FINAL NO SISTEMA
+1. ABRA O SISTEMA NA MESMA ESTACAO.
+2. TESTE:
+   - entrada
+   - reimpressao
+   - saida
+3. O SISTEMA VAI IMPRIMIR VIA:
+   http://127.0.0.1:8951
+
+OBSERVACOES IMPORTANTES
+1. A SAIDA DE VEICULOS IMPRIME 2 VIAS COM INTERVALO DE 5 SEGUNDOS.
+2. SE DER `NETWORKERROR WHEN ATTEMPTING TO FETCH RESOURCE`, O AGENTE NAO ESTAVA RODANDO.
+3. PARA DIAGNOSTICO:
+   ps aux | grep LOCAL_PRINT_AGENT_LINUX.py
+   curl http://127.0.0.1:8951/health
+   lpstat -p

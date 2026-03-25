@@ -1,0 +1,123 @@
+INSTALACAO DO SISTEMA EM UM NOVO SERVIDOR
+
+PASTA DO SISTEMA
+1. COPIE A PASTA COMPLETA DO PROJETO PARA O NOVO SERVIDOR.
+2. EXEMPLO:
+   C:\ESTACIONAMENTO
+
+REQUISITOS
+1. WINDOWS 64 BITS.
+2. PYTHON 3.14 INSTALADO E COM O COMANDO `PY` DISPONIVEL.
+3. MYSQL SERVER INSTALADO E EM EXECUCAO.
+4. ACESSO DE LEITURA/ESCRITA NA PASTA DO PROJETO.
+5. SE HOUVER NFS-E:
+   - CERTIFICADO A1 .PFX
+   - DEPENDENCIAS `CRYPTOGRAPHY`, `LXML` E `SIGNXML`
+
+CRIAR O AMBIENTE PYTHON
+1. ABRA O POWERSHELL NA PASTA DO PROJETO.
+2. RODE:
+   py -3.14 -m venv .venv
+3. SE A .VENV ESTIVER QUEBRADA, APAGUE E CRIE NOVAMENTE:
+   rmdir /s /q .venv
+   py -3.14 -m venv .venv
+4. INSTALE AS DEPENDENCIAS:
+   .\.venv\Scripts\python.exe -m pip install --upgrade pip
+   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+   .\.venv\Scripts\python.exe -m pip install lxml signxml
+
+CONFIGURAR O ARQUIVO .ENV
+1. CRIE OU AJUSTE:
+   C:\ESTACIONAMENTO\.env
+2. MODELO:
+
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=260803
+DB_NAME=estacionamento
+PRINTER_NAME=Elgin
+
+CRIAR O BANCO E AS TABELAS
+1. ABRA O MYSQL WORKBENCH OU O CLIENTE MYSQL.
+2. EXECUTE O SCRIPT:
+   C:\ESTACIONAMENTO\Instalacao de servidor\criar_tabelas_estacionamento.sql
+
+IMPORTAR AS PLACAS
+1. SE VOCE JA TIVER O ARQUIVO:
+   C:\ESTACIONAMENTO\import_placas.sql
+2. IMPORTE ESSE ARQUIVO DEPOIS DA CRIACAO DAS TABELAS.
+
+PONTOS IMPORTANTES DO BANCO ATUAL
+1. `fechamento_caixa` USA:
+   - data
+   - patio
+   - troco_inicial
+   - maquininha
+   - dinheiro
+2. `nfse_envios` GUARDA O LOG DA NFS-E DOS VEICULOS.
+3. `nfse_avulsa_envios` GUARDA O LOG DA NFS-E AVULSA.
+4. `controle_rps` CONTROLA A SEQUENCIA DO RPS.
+
+CONFIGURAR A EMPRESA FISCAL
+1. PREENCHA NA TABELA `empresa_fiscal`:
+   - codigo_servico
+   - aliquota_iss
+   - serie_rps
+   - ws_endpoint
+   - ws_soap_action
+   - certificado_caminho
+   - certificado_senha
+2. O `ws_soap_action` CORRETO E:
+   http://www.prefeitura.sp.gov.br/nfe/ws/envioLoteRPS
+
+INICIAR O SISTEMA
+1. NO POWERSHELL:
+   start.bat
+2. O `start.bat` DEVE:
+   - ATIVAR `.venv`
+   - INSTALAR O `requirements.txt`
+   - SUBIR O `app.py`
+
+ACESSO PELO NAVEGADOR
+1. ABRA:
+   http://IP_DO_SERVIDOR:5000
+2. FACA LOGIN COM UM USUARIO CADASTRADO.
+
+IMPRESSAO
+1. PARA IMPRESSAO LOCAL WINDOWS OU LINUX, USE OS ARQUIVOS DA PASTA:
+   C:\ESTACIONAMENTO\estacoes
+2. O SISTEMA ENVIA A IMPRESSAO PARA:
+   http://127.0.0.1:8951
+
+TESTES BASICOS APOS A INSTALACAO
+1. LOGIN
+2. ENTRADA DE VEICULO
+3. IMPRESSAO DO COMPROVANTE DE ENTRADA
+4. SAIDA DE VEICULO
+5. IMPRESSAO DAS 2 VIAS DA SAIDA
+6. CONSULTA ESTACIONAMENTO
+7. FECHAMENTO DE CAIXA
+8. NFS-E DE SAIDA COM CPF/CNPJ
+9. NFS-E AVULSA
+
+TESTES BASICOS DA NFS-E
+1. CONFIRMAR QUE O CERTIFICADO .PFX ESTA NO CAMINHO CONFIGURADO.
+2. TESTAR:
+   .\.venv\Scripts\python.exe -m pip show cryptography
+   .\.venv\Scripts\python.exe -m pip show lxml
+   .\.venv\Scripts\python.exe -m pip show signxml
+3. FAZER UMA SAIDA COM VALOR MAIOR QUE ZERO.
+4. FAZER UMA NFS-E AVULSA.
+
+ARQUIVOS IMPORTANTES
+1. SISTEMA PRINCIPAL:
+   C:\ESTACIONAMENTO\app.py
+2. BANCO E REGRAS:
+   C:\ESTACIONAMENTO\database.py
+3. SCRIPT SQL:
+   C:\ESTACIONAMENTO\Instalacao de servidor\criar_tabelas_estacionamento.sql
+4. AJUSTES FISCAIS:
+   C:\ESTACIONAMENTO\sql\nfse_schema.sql
+5. AGENTES DE IMPRESSAO:
+   C:\ESTACIONAMENTO\estacoes

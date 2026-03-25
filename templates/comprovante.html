@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COMPROVANTE DE ENTRADA | ESTACIONAMENTO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-comprovante">
+    <main class="area-comprovante">
+        <section class="comprovante-termico" id="comprovante">
+            <div class="linha-centralizada">{{ comprovante.empresa.nome }}</div>
+            <div class="linha-centralizada destaque">{{ comprovante.empresa.destaque }}</div>
+            <div class="linha-centralizada">{{ comprovante.cliente }}</div>
+
+            <div class="espaco"></div>
+            <div>{{ comprovante.empresa.endereco }}</div>
+            <div>{{ comprovante.empresa.cep }}</div>
+
+            <div class="espaco"></div>
+            <div>ENTRADA : {{ comprovante.entrada_id }}</div>
+            <div>{{ comprovante.data_hora }}</div>
+            <div>COMPROVANTE : {{ comprovante.comprovante_id }}</div>
+
+            <div class="espaco"></div>
+            <div class="placa-modelo">{{ comprovante.placa }} - {{ comprovante.modelo }}</div>
+            {% if comprovante.numero_prisma %}
+                <div class="prisma-modelo">PRISMA: {{ comprovante.numero_prisma }}</div>
+            {% endif %}
+
+            <div class="espaco"></div>
+            {% for linha in comprovante.aviso %}
+                <div class="linha-centralizada">{{ linha }}</div>
+            {% endfor %}
+
+            <div class="separador">----------------------------------</div>
+            <div class="linha-centralizada espacada">COMUNICADO</div>
+            <div class="linha-centralizada espacada">AOS</div>
+            <div class="linha-centralizada espacada">CLIENTES</div>
+            <div class="separador">----------------------------------</div>
+
+            <div class="bloco-comunicado">
+            {% for linha in comprovante.comunicado %}
+                {% if linha %}
+                    <div>{{ linha }}</div>
+                {% else %}
+                    <div class="espaco"></div>
+                {% endif %}
+            {% endfor %}
+            </div>
+
+            <div class="rodape-avanco-impressao"></div>
+        </section>
+
+        <div id="status-impressao" class="status-impressao">ENVIANDO IMPRESSAO PARA A IMPRESSORA LOCAL...</div>
+
+        <section class="acoes-comprovante">
+            <button id="botao-imprimir" class="botao-primario" type="button">IMPRIMIR NOVAMENTE</button>
+            <a href="{{ url_for('entrada_veiculo') }}" class="botao-secundario">NOVA ENTRADA</a>
+            <a href="{{ url_for('painel') }}" class="botao-secundario">VOLTAR AO PAINEL</a>
+        </section>
+    </main>
+
+    <script>
+        const statusImpressao = document.getElementById("status-impressao");
+        const botaoImprimir = document.getElementById("botao-imprimir");
+
+        async function imprimirDireto() {
+            statusImpressao.textContent = "ENVIANDO IMPRESSAO PARA A IMPRESSORA LOCAL...";
+            botaoImprimir.disabled = true;
+
+            try {
+                const resposta = await fetch("http://127.0.0.1:8951/print-base64", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        data_base64: "{{ print_payload }}",
+                        printer_name: "{{ printer_name }}",
+                        document_name: "COMPROVANTE ENTRADA"
+                    })
+                });
+
+                const dados = await resposta.json();
+                if (!resposta.ok || !dados.ok) {
+                    throw new Error(dados.message || "FALHA AO IMPRIMIR NA ESTACAO.");
+                }
+
+                statusImpressao.textContent = "IMPRESSAO CONCLUIDA. RETORNANDO PARA A ENTRADA...";
+                window.setTimeout(() => {
+                    window.location.href = "{{ url_for('entrada_veiculo') }}";
+                }, 1500);
+            } catch (erro) {
+                statusImpressao.textContent = erro.message;
+                botaoImprimir.disabled = false;
+            }
+        }
+
+        botaoImprimir.addEventListener("click", imprimirDireto);
+        window.addEventListener("load", imprimirDireto);
+    </script>
+</body>
+</html>
