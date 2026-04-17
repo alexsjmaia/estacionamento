@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from functools import wraps
 
+import requests
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from backup_utils import BACKUP_DIR, BackupError, criar_backup_completo, restaurar_backup_completo
@@ -26,6 +27,7 @@ from database import (
     cadastrar_placa,
     cadastrar_usuario,
     consultar_estacionamento,
+    consultar_relatorio_por_periodo,
     consultar_fechamento_por_data,
     excluir_usuario,
     gerar_numero_entrada_diario,
@@ -81,6 +83,7 @@ MENU_OPCOES = [
     {"id": "cancela", "titulo": "Cancela ultima Entrada"},
     {"id": "saida", "titulo": "Saida de veiculos"},
     {"id": "consulta", "titulo": "Consulta Estacionamento"},
+    {"id": "relatorio-periodo", "titulo": "Relatorio por periodo"},
     {"id": "fechamento-caixa", "titulo": "Fechamento de caixa"},
     {"id": "lancamento-fechamento-caixa", "titulo": "Lanca fechamento caixa"},
     {"id": "saida-lote", "titulo": "Saida geral do patio"},
@@ -166,7 +169,7 @@ def login():
         senha = request.form.get("senha", "").strip()
 
         if not test_connection():
-            erro = "NAO FOI POSSIVEL CONECTAR AO BANCO DE DADOS."
+            erro = "NAO FOI POSSIVEL INICIAR O SISTEMA NO MOMENTO."
         else:
             usuario_autenticado = autenticar_usuario(usuario, senha)
             if usuario_autenticado:
@@ -184,11 +187,18 @@ def login():
 @login_obrigatorio
 def painel():
     opcoes_disponiveis = MENU_OPCOES
-    if (session.get("usuario_logado") or "").strip().lower() == "admin":
+    usuario_logado = (session.get("usuario_logado") or "").strip().lower()
+    if usuario_logado == "admin":
         opcoes_disponiveis = [
             item
             for item in MENU_OPCOES
             if item["id"] not in {"entrada", "reimprime", "cancela", "saida", "lancamento-fechamento-caixa"}
+        ]
+    elif usuario_logado not in {"root", "admin"}:
+        opcoes_disponiveis = [
+            item
+            for item in MENU_OPCOES
+            if item["id"] not in {"fechamento-caixa", "relatorio-periodo"}
         ]
 
     return render_template(
@@ -240,10 +250,10 @@ def emitir_nfse_para_saida(movimento_saida):
         raise NfseError("PARAMETRIZACAO FISCAL DA EMPRESA NAO ENCONTRADA.")
 
     if not empresa_fiscal.get("codigo_servico"):
-        raise NfseError("CODIGO DE SERVICO NAO CONFIGURADO NA TABELA EMPRESA_FISCAL.")
+        raise NfseError("CODIGO DE SERVICO NAO CONFIGURADO.")
 
     if not empresa_fiscal.get("senha_web"):
-        raise NfseError("SENHA WEB NAO CONFIGURADA NA TABELA EMPRESA_FISCAL.")
+        raise NfseError("SENHA WEB NAO CONFIGURADA.")
 
     dados_servico = montar_dados_servico_para_nfse(movimento_saida)
     xml_rps = gerar_xml_rps(empresa_fiscal, dados_servico)
@@ -271,13 +281,25 @@ def emitir_nfse_para_saida(movimento_saida):
     return retorno
 
 
-def emitir_nfse_avulsa(documento_tomador, valor_servico, observacao_nf):
+def emitir_nfse_avulsa(
+    documento_tomador,
+    valor_servico,
+    observacao_nf,
+    tipo_logradouro_tomador="",
+    logradouro_tomador="",
+    numero_endereco_tomador="",
+    complemento_endereco_tomador="",
+    bairro_tomador="",
+    cidade_tomador="",
+    uf_tomador="",
+    cep_tomador="",
+):
     empresa_fiscal = obter_empresa_fiscal_ativa()
     if not empresa_fiscal:
         raise NfseError("PARAMETRIZACAO FISCAL DA EMPRESA NAO ENCONTRADA.")
 
     if not empresa_fiscal.get("codigo_servico"):
-        raise NfseError("CODIGO DE SERVICO NAO CONFIGURADO NA TABELA EMPRESA_FISCAL.")
+        raise NfseError("CODIGO DE SERVICO NAO CONFIGURADO.")
 
     numero_rps = obter_proximo_numero_rps(empresa_fiscal.get("serie_rps") or "RPS")
     if not numero_rps:
@@ -289,6 +311,14 @@ def emitir_nfse_avulsa(documento_tomador, valor_servico, observacao_nf):
         documento_tomador,
         valor_servico,
         observacao_nf,
+        tipo_logradouro_tomador,
+        logradouro_tomador,
+        numero_endereco_tomador,
+        complemento_endereco_tomador,
+        bairro_tomador,
+        cidade_tomador,
+        uf_tomador,
+        cep_tomador,
     )
     xml_rps = gerar_xml_rps(empresa_fiscal, dados_servico)
     try:
@@ -505,6 +535,13 @@ def formatar_documento_tomador(documento):
     return documento or ""
 
 
+def formatar_cep(cep):
+    numeros = normalizar_documento_tomador(cep)
+    if len(numeros) == 8:
+        return f"{numeros[:5]}-{numeros[5:]}"
+    return cep or ""
+
+
 def cpf_valido(cpf):
     cpf = normalizar_documento_tomador(cpf)
     if len(cpf) != 11 or cpf == cpf[0] * 11:
@@ -559,6 +596,86 @@ def parse_valor_monetario(texto):
     return float(texto.replace(".", "").replace(",", "."))
 
 
+def normalizar_tipo_logradouro(logradouro):
+    texto = (logradouro or "").strip().upper()
+    if not texto:
+        return "", ""
+
+    tipos = {
+        "RUA": "RUA",
+        "AV": "AV",
+        "AVENIDA": "AV",
+        "AL": "AL",
+        "ALAMEDA": "AL",
+        "TRAVESSA": "TRAV",
+        "TRAV": "TRAV",
+        "RODOVIA": "ROD",
+        "ROD": "ROD",
+        "ESTRADA": "EST",
+        "EST": "EST",
+        "ESP": "ESP",
+        "ESPLANADA": "ESP",
+        "PRACA": "PRACA",
+        "PCA": "PRACA",
+    }
+
+    partes = texto.split()
+    primeiro = partes[0]
+    if primeiro in tipos and len(partes) > 1:
+        return tipos[primeiro], " ".join(partes[1:])
+    return "", texto
+
+
+def buscar_codigo_ibge_por_cep(cep):
+    cep_normalizado = normalizar_documento_tomador(cep)
+    if len(cep_normalizado) != 8:
+        return ""
+
+    response = requests.get(f"https://viacep.com.br/ws/{cep_normalizado}/json/", timeout=10)
+    response.raise_for_status()
+    dados = response.json()
+    if dados.get("erro"):
+        return ""
+    return normalizar_documento_tomador(dados.get("ibge"))
+
+
+def buscar_dados_cnpj(cnpj):
+    cnpj_normalizado = normalizar_documento_tomador(cnpj)
+    if len(cnpj_normalizado) != 14 or not cnpj_valido(cnpj_normalizado):
+        raise ValueError("CNPJ INVALIDO.")
+
+    response = requests.get(f"https://brasilapi.com.br/api/cnpj/v1/{cnpj_normalizado}", timeout=10)
+    response.raise_for_status()
+    dados = response.json()
+
+    logradouro_bruto = (dados.get("logradouro") or "").strip().upper()
+    tipo_logradouro_api = (
+        dados.get("descricao_tipo_de_logradouro")
+        or dados.get("descricao_tipo_logradouro")
+        or dados.get("tipo_logradouro")
+        or ""
+    )
+    tipo_logradouro_api = str(tipo_logradouro_api).strip().upper()
+    tipo_logradouro, logradouro = normalizar_tipo_logradouro(logradouro_bruto)
+    if tipo_logradouro_api:
+        tipo_logradouro, logradouro = normalizar_tipo_logradouro(f"{tipo_logradouro_api} {logradouro_bruto}".strip())
+    if not tipo_logradouro and logradouro_bruto:
+        tipo_logradouro = "RUA"
+        logradouro = logradouro_bruto
+
+    return {
+        "tipo_logradouro_tomador": tipo_logradouro,
+        "logradouro_tomador": logradouro,
+        "numero_endereco_tomador": (dados.get("numero") or "").strip().upper(),
+        "complemento_endereco_tomador": (dados.get("complemento") or "").strip().upper(),
+        "bairro_tomador": (dados.get("bairro") or "").strip().upper(),
+        "cidade_tomador": buscar_codigo_ibge_por_cep(dados.get("cep")),
+        "uf_tomador": (dados.get("uf") or "").strip().upper(),
+        "cep_tomador": normalizar_documento_tomador(dados.get("cep")),
+        "razao_social_tomador": (dados.get("razao_social") or "").strip().upper(),
+    }
+
+
 def normalizar_codigo_marca_digitado(texto):
     texto = (texto or "").strip()
     if not texto:
@@ -592,6 +709,14 @@ def entrada_veiculo():
     exibir_numero_prisma = patio_usuario == 1
     permitir_entrada = patio_usuario is not None
     codigos_marcas = listar_codigos_marcas() if permitir_entrada else []
+    agora_banner = datetime.now()
+    exibir_banner_baixa_geral = agora_banner.hour > 18 or (
+        agora_banner.hour == 18 and agora_banner.minute >= 50
+    )
+    totais_patios = {
+        "patio_1": len(listar_veiculos_no_patio(1)),
+        "patio_2": len(listar_veiculos_no_patio(2)),
+    }
 
     if not permitir_entrada:
         erro = "USUARIO SEM PATIO CADASTRADO. NAO E POSSIVEL DAR ENTRADA EM VEICULOS."
@@ -616,6 +741,8 @@ def entrada_veiculo():
                 codigo_selecionado=codigo_selecionado,
                 exibir_numero_prisma=exibir_numero_prisma,
                 permitir_entrada=permitir_entrada,
+                totais_patios=totais_patios,
+                exibir_banner_baixa_geral=exibir_banner_baixa_geral,
             )
 
         if movimento_aberto:
@@ -631,6 +758,8 @@ def entrada_veiculo():
                 codigo_selecionado=codigo_selecionado,
                 exibir_numero_prisma=exibir_numero_prisma,
                 permitir_entrada=permitir_entrada,
+                totais_patios=totais_patios,
+                exibir_banner_baixa_geral=exibir_banner_baixa_geral,
             )
 
         cadastro = buscar_veiculo_por_placa(placa)
@@ -650,6 +779,8 @@ def entrada_veiculo():
                     codigo_selecionado=codigo_selecionado,
                     exibir_numero_prisma=exibir_numero_prisma,
                     permitir_entrada=permitir_entrada,
+                    totais_patios=totais_patios,
+                    exibir_banner_baixa_geral=exibir_banner_baixa_geral,
                 )
             return render_template(
                 "comprovante.html",
@@ -686,6 +817,8 @@ def entrada_veiculo():
                             codigo_selecionado=codigo_selecionado,
                             exibir_numero_prisma=exibir_numero_prisma,
                             permitir_entrada=permitir_entrada,
+                            totais_patios=totais_patios,
+                            exibir_banner_baixa_geral=exibir_banner_baixa_geral,
                         )
                     return render_template(
                         "comprovante.html",
@@ -711,6 +844,8 @@ def entrada_veiculo():
         codigo_selecionado=codigo_selecionado,
         exibir_numero_prisma=exibir_numero_prisma,
         permitir_entrada=permitir_entrada,
+        totais_patios=totais_patios,
+        exibir_banner_baixa_geral=exibir_banner_baixa_geral,
     )
 
 
@@ -718,6 +853,7 @@ def entrada_veiculo():
 @login_obrigatorio
 def saida_veiculo():
     erro = None
+    mensagem_sucesso = None
     placa = ""
     numero_entrada = ""
     tipo_busca = "numero_entrada"
@@ -728,6 +864,14 @@ def saida_veiculo():
     valor_recebido = ""
     valor_compra = ""
     cpf = ""
+    tipo_logradouro_tomador = ""
+    logradouro_tomador = ""
+    numero_endereco_tomador = ""
+    complemento_endereco_tomador = ""
+    bairro_tomador = ""
+    cidade_tomador = ""
+    uf_tomador = ""
+    cep_tomador = ""
     troco = None
     exibir_valor_recebido = False
 
@@ -737,9 +881,18 @@ def saida_veiculo():
         tipo_busca = request.form.get("tipo_busca", "placa").strip().lower()
         forma_pagamento_id = request.form.get("forma_pagamento_id", "").strip()
         confirmar_saida = request.form.get("confirmar_saida", "") == "1"
+        acao_formulario = request.form.get("acao_formulario", "").strip().lower()
         valor_recebido = request.form.get("valor_recebido", "").strip().replace(",", ".")
         valor_compra = request.form.get("valor_compra", "").strip().replace(",", ".")
         cpf = request.form.get("cpf", "").strip()
+        tipo_logradouro_tomador = request.form.get("tipo_logradouro_tomador", "").strip().upper()
+        logradouro_tomador = request.form.get("logradouro_tomador", "").strip().upper()
+        numero_endereco_tomador = request.form.get("numero_endereco_tomador", "").strip().upper()
+        complemento_endereco_tomador = request.form.get("complemento_endereco_tomador", "").strip().upper()
+        bairro_tomador = request.form.get("bairro_tomador", "").strip().upper()
+        cidade_tomador = request.form.get("cidade_tomador", "").strip().upper()
+        uf_tomador = request.form.get("uf_tomador", "").strip().upper()
+        cep_tomador = request.form.get("cep_tomador", "").strip()
 
         if tipo_busca == "numero_entrada":
             if not numero_entrada:
@@ -786,6 +939,59 @@ def saida_veiculo():
                 formas_pagamento = listar_formas_pagamento() if confirmar_saida else []
             elif confirmar_saida:
                 forma_pagamento = buscar_forma_pagamento(forma_pagamento_id)
+                descricao_pagamento = forma_pagamento["descricao"] if forma_pagamento else None
+                exibir_valor_recebido = descricao_pagamento == "DINHEIRO"
+
+                if acao_formulario == "buscar_dados":
+                    formas_pagamento = listar_formas_pagamento()
+                    documento_tomador = normalizar_documento_tomador(cpf)
+                    if len(documento_tomador) != 14 or not cnpj_valido(documento_tomador):
+                        erro = "INFORME UM CNPJ VALIDO PARA BUSCAR OS DADOS."
+                    else:
+                        try:
+                            dados_cnpj = buscar_dados_cnpj(documento_tomador)
+                        except requests.RequestException:
+                            erro = "NAO FOI POSSIVEL CONSULTAR O CNPJ NO MOMENTO."
+                        except ValueError as exc:
+                            erro = str(exc)
+                        else:
+                            tipo_logradouro_tomador = dados_cnpj["tipo_logradouro_tomador"]
+                            logradouro_tomador = dados_cnpj["logradouro_tomador"]
+                            numero_endereco_tomador = dados_cnpj["numero_endereco_tomador"]
+                            complemento_endereco_tomador = dados_cnpj["complemento_endereco_tomador"]
+                            bairro_tomador = dados_cnpj["bairro_tomador"]
+                            cidade_tomador = dados_cnpj["cidade_tomador"]
+                            uf_tomador = dados_cnpj["uf_tomador"]
+                            cep_tomador = formatar_cep(dados_cnpj["cep_tomador"])
+                            mensagem_sucesso = "DADOS DO CNPJ PREENCHIDOS."
+
+                    return render_template(
+                        "saida.html",
+                        erro=erro,
+                        placa=placa,
+                        numero_entrada=numero_entrada,
+                        tipo_busca=tipo_busca,
+                        movimento=movimento,
+                        formas_pagamento=formas_pagamento,
+                        forma_pagamento_id=forma_pagamento_id,
+                        dados_saida=dados_saida,
+                        mensagem_sucesso=mensagem_sucesso,
+                        valor_recebido=request.form.get("valor_recebido", "").strip(),
+                        valor_compra=request.form.get("valor_compra", "").strip(),
+                        cpf=request.form.get("cpf", "").strip(),
+                        tipo_logradouro_tomador=tipo_logradouro_tomador,
+                        logradouro_tomador=logradouro_tomador,
+                        numero_endereco_tomador=numero_endereco_tomador,
+                        complemento_endereco_tomador=complemento_endereco_tomador,
+                        bairro_tomador=bairro_tomador,
+                        cidade_tomador=cidade_tomador,
+                        uf_tomador=uf_tomador,
+                        cep_tomador=cep_tomador,
+                        troco=troco,
+                        exibir_valor_recebido=exibir_valor_recebido,
+                        formatar_documento_tomador=formatar_documento_tomador,
+                    )
+
                 if valor_cobrado is None:
                     erro = "NAO FOI POSSIVEL CALCULAR O VALOR DA SAIDA."
                 elif valor_cobrado > 0 and not forma_pagamento:
@@ -795,9 +1001,18 @@ def saida_veiculo():
                     if cpf and not documento_tomador_valido(cpf):
                         erro = "CPF OU CNPJ INVALIDO."
                         formas_pagamento = listar_formas_pagamento()
+                    elif len(normalizar_documento_tomador(cpf)) == 14 and (
+                        not tipo_logradouro_tomador
+                        or not logradouro_tomador
+                        or not numero_endereco_tomador
+                        or not bairro_tomador
+                        or len(normalizar_documento_tomador(cidade_tomador)) != 7
+                        or not uf_tomador
+                        or len(normalizar_documento_tomador(cep_tomador)) != 8
+                    ):
+                        erro = "PARA CNPJ, INFORME O ENDERECO COMPLETO E O CODIGO IBGE DA CIDADE."
+                        formas_pagamento = listar_formas_pagamento()
 
-                    descricao_pagamento = forma_pagamento["descricao"] if forma_pagamento else None
-                    exibir_valor_recebido = descricao_pagamento == "DINHEIRO"
                     if descricao_pagamento == "DINHEIRO" and valor_recebido:
                         try:
                             valor_recebido_float = float(valor_recebido)
@@ -817,11 +1032,50 @@ def saida_veiculo():
                             formas_pagamento=formas_pagamento,
                             forma_pagamento_id=forma_pagamento_id,
                             dados_saida=dados_saida,
-                            mensagem_sucesso=None,
+                            mensagem_sucesso=mensagem_sucesso,
                             valor_recebido=request.form.get("valor_recebido", "").strip(),
                             valor_compra=request.form.get("valor_compra", "").strip(),
                             cpf=request.form.get("cpf", "").strip(),
+                            tipo_logradouro_tomador=tipo_logradouro_tomador,
+                            logradouro_tomador=logradouro_tomador,
+                            numero_endereco_tomador=numero_endereco_tomador,
+                            complemento_endereco_tomador=complemento_endereco_tomador,
+                            bairro_tomador=bairro_tomador,
+                            cidade_tomador=cidade_tomador,
+                            uf_tomador=uf_tomador,
+                            cep_tomador=cep_tomador,
                             troco=None,
+                            exibir_valor_recebido=exibir_valor_recebido,
+                            formatar_documento_tomador=formatar_documento_tomador,
+                        )
+
+                    data_saida_atual = agora.strftime("%Y-%m-%d")
+                    if data_saida_atual != datetime.now().strftime("%Y-%m-%d"):
+                        erro = "A DATA DA SAIDA DEVE SER A DATA DE HOJE."
+                        formas_pagamento = listar_formas_pagamento()
+                        return render_template(
+                            "saida.html",
+                            erro=erro,
+                            placa=placa,
+                            numero_entrada=numero_entrada,
+                            tipo_busca=tipo_busca,
+                            movimento=movimento,
+                            formas_pagamento=formas_pagamento,
+                            forma_pagamento_id=forma_pagamento_id,
+                            dados_saida=dados_saida,
+                            mensagem_sucesso=mensagem_sucesso,
+                            valor_recebido=request.form.get("valor_recebido", "").strip(),
+                            valor_compra=request.form.get("valor_compra", "").strip(),
+                            cpf=request.form.get("cpf", "").strip(),
+                            tipo_logradouro_tomador=tipo_logradouro_tomador,
+                            logradouro_tomador=logradouro_tomador,
+                            numero_endereco_tomador=numero_endereco_tomador,
+                            complemento_endereco_tomador=complemento_endereco_tomador,
+                            bairro_tomador=bairro_tomador,
+                            cidade_tomador=cidade_tomador,
+                            uf_tomador=uf_tomador,
+                            cep_tomador=cep_tomador,
+                            troco=troco,
                             exibir_valor_recebido=exibir_valor_recebido,
                             formatar_documento_tomador=formatar_documento_tomador,
                         )
@@ -853,6 +1107,14 @@ def saida_veiculo():
                                         "tempo_permanencia": dados_saida["tempo_permanencia"],
                                         "valor_cobrado": valor_cobrado,
                                         "cpf": normalizar_documento_tomador(cpf),
+                                        "tipo_logradouro_tomador": tipo_logradouro_tomador,
+                                        "logradouro_tomador": logradouro_tomador,
+                                        "numero_endereco_tomador": numero_endereco_tomador,
+                                        "complemento_endereco_tomador": complemento_endereco_tomador,
+                                        "bairro_tomador": bairro_tomador,
+                                        "cidade_tomador": normalizar_documento_tomador(cidade_tomador),
+                                        "uf_tomador": uf_tomador,
+                                        "cep_tomador": normalizar_documento_tomador(cep_tomador),
                                         "forma_pagamento": descricao_pagamento,
                                         "data_hora_saida": agora,
                                     }
@@ -935,6 +1197,14 @@ def saida_veiculo():
                             valor_recebido="",
                             valor_compra="",
                             cpf="",
+                            tipo_logradouro_tomador="",
+                            logradouro_tomador="",
+                            numero_endereco_tomador="",
+                            complemento_endereco_tomador="",
+                            bairro_tomador="",
+                            cidade_tomador="",
+                            uf_tomador="",
+                            cep_tomador="",
                             troco=None,
                             exibir_valor_recebido=False,
                             formatar_documento_tomador=formatar_documento_tomador,
@@ -957,10 +1227,18 @@ def saida_veiculo():
         formas_pagamento=formas_pagamento,
         forma_pagamento_id=forma_pagamento_id,
         dados_saida=dados_saida,
-        mensagem_sucesso=None,
+        mensagem_sucesso=mensagem_sucesso,
         valor_recebido=request.form.get("valor_recebido", "").strip() if request.method == "POST" else "",
         valor_compra=request.form.get("valor_compra", "").strip() if request.method == "POST" else "",
         cpf=request.form.get("cpf", "").strip() if request.method == "POST" else "",
+        tipo_logradouro_tomador=tipo_logradouro_tomador,
+        logradouro_tomador=logradouro_tomador,
+        numero_endereco_tomador=numero_endereco_tomador,
+        complemento_endereco_tomador=complemento_endereco_tomador,
+        bairro_tomador=bairro_tomador,
+        cidade_tomador=cidade_tomador,
+        uf_tomador=uf_tomador,
+        cep_tomador=cep_tomador,
         troco=troco,
         exibir_valor_recebido=exibir_valor_recebido,
         formatar_documento_tomador=formatar_documento_tomador,
@@ -1142,9 +1420,63 @@ def consulta_estacionamento():
     )
 
 
+@app.route("/relatorio-por-periodo", methods=["GET", "POST"])
+@login_obrigatorio
+def relatorio_por_periodo():
+    if (session.get("usuario_logado") or "").strip().lower() != "admin":
+        return redirect(url_for("painel"))
+
+    agora = datetime.now()
+    data_inicial = agora.strftime("%Y-%m-%d")
+    data_final = agora.strftime("%Y-%m-%d")
+    erro = None
+    resultado = None
+
+    if request.method == "POST":
+        data_inicial = request.form.get("data_inicial", "").strip()
+        data_final = request.form.get("data_final", "").strip()
+
+        if not data_inicial or not data_final:
+            erro = "INFORME A DATA INICIAL E A DATA FINAL."
+        else:
+            inicio = datetime.strptime(data_inicial, "%Y-%m-%d")
+            fim = datetime.strptime(data_final, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            consulta = consultar_relatorio_por_periodo(inicio, fim)
+            if consulta is None:
+                erro = "NAO FOI POSSIVEL GERAR O RELATORIO DO PERIODO."
+            else:
+                resultado = {
+                    "linhas": [
+                        {
+                            "data": item["data"].strftime("%d/%m/%Y"),
+                            "patio_1": formatar_moeda(item["patio_1"]),
+                            "patio_2": formatar_moeda(item["patio_2"]),
+                            "total": formatar_moeda(item["total"]),
+                        }
+                        for item in consulta["linhas"]
+                    ],
+                    "totais": {
+                        "patio_1": formatar_moeda(consulta["totais"]["patio_1"]),
+                        "patio_2": formatar_moeda(consulta["totais"]["patio_2"]),
+                        "total": formatar_moeda(consulta["totais"]["total"]),
+                    },
+                }
+
+    return render_template(
+        "relatorio_por_periodo.html",
+        data_inicial=data_inicial,
+        data_final=data_final,
+        erro=erro,
+        resultado=resultado,
+    )
+
+
 @app.route("/fechamento-caixa", methods=["GET", "POST"])
 @login_obrigatorio
 def fechamento_caixa():
+    if not usuario_eh_admin():
+        return redirect(url_for("painel"))
+
     data_referencia = datetime.now().strftime("%Y-%m-%d")
     erro = None
     resultado = None
@@ -1180,24 +1512,25 @@ def fechamento_caixa():
                 fechamento_salvo = obter_fechamento_caixa_por_data(data_referencia, int(patio))
                 if fechamento_salvo:
                     fechamento_salvo = dict(fechamento_salvo)
+                totais_troco_inicial = float((fechamento_salvo or {}).get("troco_inicial") or 0)
+                totais_dinheiro = totais_troco_inicial + totais_consulta["DINHEIRO"]
                 diferencas = None
                 if fechamento_salvo:
                     fechamento_troco_inicial = float(fechamento_salvo["troco_inicial"] or 0)
                     fechamento_maquininha = float(fechamento_salvo["maquininha"] or 0)
                     fechamento_dinheiro = float(fechamento_salvo["dinheiro"] or 0)
-                    totais_troco_inicial = float((fechamento_salvo or {}).get("troco_inicial") or 0)
                     diferencas = {
                         "troco_inicial": formatar_moeda(fechamento_troco_inicial - totais_troco_inicial),
                         "maquininha": formatar_moeda(fechamento_maquininha - totais_consulta["CARTAO"]),
-                        "dinheiro": formatar_moeda(fechamento_dinheiro - totais_consulta["DINHEIRO"]),
+                        "dinheiro": formatar_moeda(fechamento_dinheiro - totais_dinheiro),
                         "troco_inicial_negativo": (fechamento_troco_inicial - totais_troco_inicial) < 0,
                         "maquininha_negativo": (fechamento_maquininha - totais_consulta["CARTAO"]) < 0,
-                        "dinheiro_negativo": (fechamento_dinheiro - totais_consulta["DINHEIRO"]) < 0,
+                        "dinheiro_negativo": (fechamento_dinheiro - totais_dinheiro) < 0,
                     }
                     total_diferenca_caixa = (
                         (fechamento_troco_inicial - totais_troco_inicial)
                         + (fechamento_maquininha - totais_consulta["CARTAO"])
-                        + (fechamento_dinheiro - totais_consulta["DINHEIRO"])
+                        + (fechamento_dinheiro - totais_dinheiro)
                     )
                     diferencas["total_caixa"] = formatar_moeda(total_diferenca_caixa)
                     diferencas["total_caixa_negativo"] = total_diferenca_caixa < 0
@@ -1206,9 +1539,9 @@ def fechamento_caixa():
                     "totais": totais,
                     "total_geral": formatar_moeda(float(consulta["total_geral"] or 0)),
                     "totais_layout": {
-                        "troco_inicial": formatar_moeda(float((fechamento_salvo or {}).get("troco_inicial") or 0)),
+                        "troco_inicial": formatar_moeda(totais_troco_inicial),
                         "maquininha": formatar_moeda(totais_consulta["CARTAO"]),
-                        "dinheiro": formatar_moeda(totais_consulta["DINHEIRO"]),
+                        "dinheiro": formatar_moeda(totais_dinheiro),
                         "total_geral": formatar_moeda(float(consulta["total_geral"] or 0)),
                     },
                     "fechamento_salvo": fechamento_salvo,
@@ -1573,6 +1906,7 @@ def saida_geral_patio():
     patio_filtro = None
     veiculos_no_patio = listar_veiculos_no_patio()
     senha_confirmacao = ""
+    data_baixa = datetime.now().strftime("%Y-%m-%d")
 
     if request.method == "POST":
         opcao_patio = request.form.get("opcao_patio", "todos").strip().lower() or "todos"
@@ -1583,12 +1917,34 @@ def saida_geral_patio():
         else:
             patio_filtro = None
 
+        data_baixa = request.form.get("data_baixa", "").strip() or data_baixa
         senha_confirmacao = request.form.get("senha_saida_lote", "").strip()
         veiculos_no_patio = listar_veiculos_no_patio(patio_filtro)
-        if senha_confirmacao != "801973":
+        if not data_baixa:
+            erro = "INFORME A DATA DA BAIXA."
+        elif senha_confirmacao != "801973":
             erro = "SENHA INVALIDA."
         else:
+            try:
+                data_baixa_obj = datetime.strptime(data_baixa, "%Y-%m-%d").date()
+            except ValueError:
+                erro = "DATA DA BAIXA INVALIDA."
+                data_baixa_obj = None
+
+            if erro:
+                return render_template(
+                    "saida_lote.html",
+                    erro=erro,
+                    mensagem_sucesso=mensagem_sucesso,
+                    veiculos_no_patio=veiculos_no_patio,
+                    encerrados=encerrados,
+                    senha_confirmacao=senha_confirmacao,
+                    opcao_patio=opcao_patio,
+                    data_baixa=data_baixa,
+                )
+
             agora = datetime.now()
+            agora = datetime.combine(data_baixa_obj, agora.time())
             encerrados = registrar_saida_lote(agora, patio_filtro)
             if encerrados:
                 mensagem_sucesso = f"{len(encerrados)} VEICULO(S) FORAM ENCERRADOS COM VALOR R$ 0,00."
@@ -1604,6 +1960,7 @@ def saida_geral_patio():
         encerrados=encerrados,
         senha_confirmacao=senha_confirmacao,
         opcao_patio=opcao_patio,
+        data_baixa=data_baixa,
     )
 
 
@@ -1678,9 +2035,18 @@ def editar_cadastro_veiculos():
 @login_obrigatorio
 def nfse_avulsa():
     erro = None
+    mensagem_sucesso = None
     documento_tomador = ""
     valor_servico = ""
     observacao_nf = ""
+    tipo_logradouro_tomador = ""
+    logradouro_tomador = ""
+    numero_endereco_tomador = ""
+    complemento_endereco_tomador = ""
+    bairro_tomador = ""
+    cidade_tomador = ""
+    uf_tomador = ""
+    cep_tomador = ""
     acesso_liberado = session.get("nfse_avulsa_liberada") is True
 
     if request.method == "POST":
@@ -1692,15 +2058,54 @@ def nfse_avulsa():
                 session["nfse_avulsa_liberada"] = True
                 acesso_liberado = True
         else:
+            acao_formulario = request.form.get("acao_formulario", "").strip().lower()
             documento_tomador = request.form.get("documento_tomador", "").strip()
             valor_servico = request.form.get("valor_servico", "").strip()
             observacao_nf = request.form.get("observacao_nf", "").strip().upper()
+            tipo_logradouro_tomador = request.form.get("tipo_logradouro_tomador", "").strip().upper()
+            logradouro_tomador = request.form.get("logradouro_tomador", "").strip().upper()
+            numero_endereco_tomador = request.form.get("numero_endereco_tomador", "").strip().upper()
+            complemento_endereco_tomador = request.form.get("complemento_endereco_tomador", "").strip().upper()
+            bairro_tomador = request.form.get("bairro_tomador", "").strip().upper()
+            cidade_tomador = request.form.get("cidade_tomador", "").strip().upper()
+            uf_tomador = request.form.get("uf_tomador", "").strip().upper()
+            cep_tomador = request.form.get("cep_tomador", "").strip()
 
             documento_normalizado = normalizar_documento_tomador(documento_tomador)
             if not documento_normalizado:
                 erro = "INFORME O CPF OU CNPJ DO CLIENTE."
             elif not documento_tomador_valido(documento_normalizado):
                 erro = "CPF OU CNPJ INVALIDO."
+            elif acao_formulario == "buscar_dados":
+                if len(documento_normalizado) != 14:
+                    erro = "INFORME UM CNPJ VALIDO PARA BUSCAR OS DADOS."
+                else:
+                    try:
+                        dados_cnpj = buscar_dados_cnpj(documento_normalizado)
+                    except requests.RequestException:
+                        erro = "NAO FOI POSSIVEL CONSULTAR O CNPJ NO MOMENTO."
+                    except ValueError as exc:
+                        erro = str(exc)
+                    else:
+                        tipo_logradouro_tomador = dados_cnpj["tipo_logradouro_tomador"]
+                        logradouro_tomador = dados_cnpj["logradouro_tomador"]
+                        numero_endereco_tomador = dados_cnpj["numero_endereco_tomador"]
+                        complemento_endereco_tomador = dados_cnpj["complemento_endereco_tomador"]
+                        bairro_tomador = dados_cnpj["bairro_tomador"]
+                        cidade_tomador = dados_cnpj["cidade_tomador"]
+                        uf_tomador = dados_cnpj["uf_tomador"]
+                        cep_tomador = formatar_cep(dados_cnpj["cep_tomador"])
+                        mensagem_sucesso = "DADOS DO CNPJ PREENCHIDOS."
+            elif len(documento_normalizado) == 14 and (
+                not tipo_logradouro_tomador
+                or not logradouro_tomador
+                or not numero_endereco_tomador
+                or not bairro_tomador
+                or len(normalizar_documento_tomador(cidade_tomador)) != 7
+                or not uf_tomador
+                or len(normalizar_documento_tomador(cep_tomador)) != 8
+            ):
+                erro = "PARA CNPJ, INFORME O ENDERECO COMPLETO E O CODIGO IBGE DA CIDADE."
             elif not valor_servico:
                 erro = "INFORME O VALOR DO SERVICO."
             elif not observacao_nf:
@@ -1719,6 +2124,14 @@ def nfse_avulsa():
                                 documento_normalizado,
                                 valor_servico_float,
                                 observacao_nf,
+                                tipo_logradouro_tomador,
+                                logradouro_tomador,
+                                numero_endereco_tomador,
+                                complemento_endereco_tomador,
+                                bairro_tomador,
+                                normalizar_documento_tomador(cidade_tomador),
+                                uf_tomador,
+                                normalizar_documento_tomador(cep_tomador),
                             )
                         except (NfseError, NfseSignerError) as exc:
                             erro = str(exc)
@@ -1749,9 +2162,18 @@ def nfse_avulsa():
     return render_template(
         "nfse_avulsa.html",
         erro=erro,
+        mensagem_sucesso=mensagem_sucesso,
         documento_tomador=documento_tomador,
         valor_servico=valor_servico,
         observacao_nf=observacao_nf,
+        tipo_logradouro_tomador=tipo_logradouro_tomador,
+        logradouro_tomador=logradouro_tomador,
+        numero_endereco_tomador=numero_endereco_tomador,
+        complemento_endereco_tomador=complemento_endereco_tomador,
+        bairro_tomador=bairro_tomador,
+        cidade_tomador=cidade_tomador,
+        uf_tomador=uf_tomador,
+        cep_tomador=cep_tomador,
         acesso_liberado=acesso_liberado,
     )
 
@@ -1769,6 +2191,12 @@ def acao(acao_id):
     if acao_id == "usuarios" and not usuario_eh_root():
         return redirect(url_for("painel"))
 
+    if acao_id == "fechamento-caixa" and not usuario_eh_admin():
+        return redirect(url_for("painel"))
+
+    if acao_id == "relatorio-periodo" and (session.get("usuario_logado") or "").strip().lower() != "admin":
+        return redirect(url_for("painel"))
+
     if acao_id == "entrada":
         return redirect(url_for("entrada_veiculo"))
 
@@ -1783,6 +2211,9 @@ def acao(acao_id):
 
     if acao_id == "consulta":
         return redirect(url_for("consulta_estacionamento"))
+
+    if acao_id == "relatorio-periodo":
+        return redirect(url_for("relatorio_por_periodo"))
 
     if acao_id == "fechamento-caixa":
         return redirect(url_for("fechamento_caixa"))

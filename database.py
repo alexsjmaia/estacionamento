@@ -499,7 +499,7 @@ def registrar_entrada_veiculo(placa, numero_entrada, data_hora_entrada, patio=No
                 """
                 SELECT id
                 FROM veiculos
-                WHERE placa = %s
+                WHERE UPPER(TRIM(placa)) = %s
                   AND data_hora_saida IS NULL
                 ORDER BY data_hora_entrada DESC
                 LIMIT 1
@@ -556,7 +556,7 @@ def veiculo_esta_no_patio(placa):
                     placa,
                     data_hora_entrada
                 FROM veiculos
-                WHERE placa = %s
+                WHERE UPPER(TRIM(placa)) = %s
                   AND data_hora_saida IS NULL
                 ORDER BY data_hora_entrada DESC
                 LIMIT 1
@@ -1016,11 +1016,11 @@ def registrar_saida_lote(data_hora_saida, patio=None):
                         data_hora_saida = %s,
                         tempo_permanencia = %s,
                         valor_cobrado = 0.00,
-                        forma_pagamento = NULL
+                        forma_pagamento = %s
                     WHERE id = %s
                       AND data_hora_saida IS NULL
                     """,
-                    (data_hora_saida, tempo_permanencia, veiculo["id"]),
+                    (data_hora_saida, tempo_permanencia, "BAIXADO", veiculo["id"]),
                 )
 
                 if cursor.rowcount > 0:
@@ -1034,6 +1034,21 @@ def registrar_saida_lote(data_hora_saida, patio=None):
                             "tempo_permanencia": tempo_permanencia,
                         }
                     )
+
+            sql_segurança = """
+                UPDATE veiculos
+                SET
+                    data_hora_saida = %s,
+                    tempo_permanencia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_hora_entrada, %s)),
+                    valor_cobrado = 0.00,
+                    forma_pagamento = %s
+                WHERE data_hora_saida IS NULL
+            """
+            parametros_segurança = [data_hora_saida, data_hora_saida, "BAIXADO"]
+            if patio not in (None, "", 0):
+                sql_segurança += " AND patio = %s"
+                parametros_segurança.append(patio)
+            cursor.execute(sql_segurança, tuple(parametros_segurança))
 
             connection.commit()
             return atualizados
@@ -1182,15 +1197,14 @@ def consultar_estacionamento(data_inicial, data_final):
                 """
                 SELECT
                     COALESCE(patio, 0) AS patio,
-                    COUNT(*) AS total_entradas,
+                    COUNT(CASE WHEN data_hora_entrada BETWEEN %s AND %s THEN 1 END) AS total_entradas,
                     SUM(CASE WHEN data_hora_saida IS NULL THEN 1 ELSE 0 END) AS total_no_patio,
-                    COALESCE(SUM(valor_cobrado), 0) AS faturamento_total
+                    COALESCE(SUM(CASE WHEN data_hora_entrada BETWEEN %s AND %s THEN valor_cobrado ELSE 0 END), 0) AS faturamento_total
                 FROM veiculos
-                WHERE data_hora_entrada BETWEEN %s AND %s
                 GROUP BY patio
                 ORDER BY patio
                 """,
-                (data_inicial, data_final),
+                (data_inicial, data_final, data_inicial, data_final),
             )
             patios = {}
             for item in cursor.fetchall():
@@ -1207,6 +1221,61 @@ def consultar_estacionamento(data_inicial, data_final):
                 "ticket_medio": ticket_medio,
                 "patios": patios,
             }
+    except Error:
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return None
+
+
+def consultar_relatorio_por_periodo(data_inicial, data_final):
+    if not data_inicial or not data_final:
+        return None
+
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(**get_db_config())
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    DATE(data_hora_saida) AS data_referencia,
+                    COALESCE(SUM(CASE WHEN patio = 1 THEN valor_cobrado ELSE 0 END), 0) AS patio_1,
+                    COALESCE(SUM(CASE WHEN patio = 2 THEN valor_cobrado ELSE 0 END), 0) AS patio_2,
+                    COALESCE(SUM(valor_cobrado), 0) AS total
+                FROM veiculos
+                WHERE data_hora_saida BETWEEN %s AND %s
+                GROUP BY DATE(data_hora_saida)
+                ORDER BY DATE(data_hora_saida)
+                """,
+                (data_inicial, data_final),
+            )
+
+            linhas = []
+            totais = {"patio_1": 0.0, "patio_2": 0.0, "total": 0.0}
+            for item in cursor.fetchall():
+                patio_1 = float(item["patio_1"] or 0)
+                patio_2 = float(item["patio_2"] or 0)
+                total = float(item["total"] or 0)
+                linhas.append(
+                    {
+                        "data": item["data_referencia"],
+                        "patio_1": patio_1,
+                        "patio_2": patio_2,
+                        "total": total,
+                    }
+                )
+                totais["patio_1"] += patio_1
+                totais["patio_2"] += patio_2
+                totais["total"] += total
+
+            return {"linhas": linhas, "totais": totais}
     except Error:
         return None
     finally:
